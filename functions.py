@@ -43,9 +43,11 @@ def append_dict(dict_a:Dict[str,np.ndarray], dict_b:Dict[str,np.ndarray]):
         dict_a[k] = np.concatenate((dict_a[k], v))
 
 def L1Loss(x:torch.FloatTensor):
+   
     return torch.mean(torch.abs(x))
 
 def L2Loss(x:torch.FloatTensor):
+    
     return torch.mean(torch.pow(x, 2))
 
 def Linear(x:torch.FloatTensor):

@@ -284,21 +284,21 @@ def mnist_sum(training_set:Dataset, save=True):
 def training_progress(lstm:ModelState, rnn:ModelState, tub:ModelState, save=True):
     fig, axes = init_axes(4, figsize=(6,8), shape=(2,2))
 
-    x = np.arange(1, 201)
+    #x = np.arange(1, 201)
 
-    axes[0][0].plot(x, lstm.results["train loss"], label="Training set")
-    axes[0][0].plot(x, lstm.results["test loss"], label="Test set")
+    axes[0][0].plot(np.arange(1, len(lstm.results["train loss"])+1), lstm.results["train loss"], label="Training set")
+    axes[0][0].plot(np.arange(1, len(lstm.results["test loss"])+1), lstm.results["test loss"], label="Test set")
 
-    axes[0][1].plot(x, rnn.results["train loss"], label="Training set")
-    axes[0][1].plot(x, rnn.results["test loss"], label="Test set")
+    axes[0][1].plot(np.arange(1, len(rnn.results["train loss"])+1), rnn.results["train loss"], label="Training set")
+    axes[0][1].plot(np.arange(1, len(rnn.results["test loss"])+1), rnn.results["test loss"], label="Test set")
 
-    axes[1][0].plot(x, tub.results["train loss"], label="Training set")
-    axes[1][0].plot(x, tub.results["test loss"], label="Test set")
+    axes[1][0].plot(np.arange(1, len(tub.results["train loss"])+1), tub.results["train loss"], label="Training set")
+    axes[1][0].plot(np.arange(1, len(tub.results["test loss"])+1), tub.results["test loss"], label="Test set")
 
-    axes[1][1].plot(x, lstm.results["train loss"], label="LSTM")
-    axes[1][1].plot(x, rnn.results["train loss"], label="SRN")
-    axes[1][1].plot(x, tub.results["train loss"], label="Bathtub")
-
+    axes[1][1].plot(np.arange(1, len(lstm.results["train loss"])+1), lstm.results["train loss"], label="LSTM")
+    axes[1][1].plot(np.arange(1, len(rnn.results["train loss"])+1), rnn.results["train loss"], label="SRN")
+    axes[1][1].plot(np.arange(1, len(tub.results["train loss"])+1), tub.results["train loss"], label="Bathtub")
+   
     for ax, label in zip(axes.flat, [('a','LSTM'),('b','SRN'),('c','Bathtub'),('d','All')]):
         ax.xaxis.set_major_locator(MaxNLocator(integer=True));
         ax.set_xlabel(r"Training time $\longrightarrow$",fontsize=16)
@@ -373,7 +373,7 @@ def model_activity(lstm:ModelState,
             h_gmed = (x - gmedian)
             h_lstm, l_lstm = lstm.model(x, state=h_lstm)
             h_rnn, l_rnn = rnn.model(x, state=h_rnn)
-            h_tub, l_tub = tub.model(x, state=h_tub)
+            h_tub, l_tub = tub.model(x, state=h_tub) 
 
             # calculate L1 loss for each unit, assuming equal amounts of units in each model
             m_notn = x.abs().sum(dim=1)/tub.model.hidden_size
@@ -381,7 +381,7 @@ def model_activity(lstm:ModelState,
             m_gmed = h_gmed.abs().sum(dim=1)/tub.model.hidden_size
             m_lstm = torch.cat([a for a in l_lstm], dim=1).abs().mean(dim=1)
             m_rnn = torch.cat([a for a in l_rnn], dim=1).abs().mean(dim=1)
-            m_tub = torch.cat([a for a in l_tub], dim=1).abs().mean(dim=1)
+            m_tub = torch.cat([a for a in [l_tub[1]]], dim=1).abs().mean(dim=1) # EDITED orginal expr: 'torch.cat([a for a in l_tub], dim=1).abs().mean(dim=1)'
 
             # Calculate the mean
             mu_notn.append(m_notn.mean().cpu().item())
@@ -512,7 +512,7 @@ def example_sequence_state(ms:ModelState, dataset:Dataset, save=True):
     for x in seq:
 
         p = ms.predict(h)
-        h, [a] = ms.model(x, state=h)
+        h, [a,b,c] = ms.model(x, state=h) # EDITED: old: h, [a,b] new: [a,b,c]
 
         X.append(x.mean(dim=0).detach().cpu())
         P.append(p.mean(dim=0).detach().cpu())
@@ -590,7 +590,7 @@ def _calc_xdrive_pdrive(ms:ModelState, dataset:Dataset):
 
     pdrive = F.relu(p).mean(dim=0).detach()
     xdrive = F.relu(x).mean(dim=0).detach()
-
+  
     return xdrive, pdrive
 
 def _pred_mask(ms:ModelState, dataset:Dataset):
@@ -696,8 +696,8 @@ def model_activity_lesioned(ms:ModelState, training_set:Dataset, test_set:Datase
             m_notn = x.abs().sum(dim=1)/ms.model.hidden_size
             m_meds = h_meds.abs().sum(dim=1)/ms.model.hidden_size
             m_gmed = h_gmed.abs().sum(dim=1)/ms.model.hidden_size
-            m_tub = torch.cat([a for a in l_tub], dim=1).abs().mean(dim=1)
-            m_tubles = torch.cat([a for a in l_tubles], dim=1).abs().mean(dim=1)
+            m_tub = torch.cat([a for a in [l_tub[1]]], dim=1).abs().mean(dim=1) # EDITED: old expr: 'torch.cat([a for a in l_tub], dim=1).abs().mean(dim=1)'
+            m_tubles = torch.cat([a for a in [l_tubles[1]]], dim=1).abs().mean(dim=1) # EDITED: old expr: 'm_tubles = torch.cat([a for a in l_tubles], dim=1).abs().mean(dim=1)'
 
             # Calculate the mean
             mu_notn.append(m_notn.mean().cpu().item())
@@ -803,3 +803,486 @@ def pred_after_timestep(ms:ModelState, dataset:Dataset, mask=None, save=True):
         save_fig(fig,
                       ms.title+"/pred-after-timestep" + ("-lesioned" if mask is not None else ""),
                       bbox_inches='tight')
+        
+#
+# New experiments
+#
+def beta_loss(betas, 
+              train_loss, 
+              test_loss, 
+              title='a', 
+              scale='linear', 
+              save=True):
+    fig, ax = init_axes(1, figsize=(6,8), shape=(1,1))
+    fig.suptitle('loss term: ' +title)
+    ax.plot(betas, train_loss, label='train loss')
+    ax.plot(betas, test_loss, label='test loss')
+    ax.set_xlabel('betas')
+    ax.set_ylabel('loss')
+    ax.set_xticks(betas)
+    if scale == 'log':
+        ax.set_xscale('symlog', linthreshx=10**-10)
+    ax.legend()
+    ax.grid()
+    if save is True:
+        save_fig(fig, title, bbox_inches='tight')
+    
+def mean_activity(betas,
+                  models,
+                  training_set:Dataset,
+                  test_set:Dataset,
+                  seq_length=9,
+                  title='a',
+                  activity='pre',
+                  seed=2732,
+                  save=True):
+    if seed is None:
+        seed = np.random.randint(1e4)
+        print(seed)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+        
+    # category medians and median for all images
+    meds = mnist.medians(training_set)
+    global_median = training_set.x.median(dim=0).values
+    
+    with torch.no_grad():
+        data, labels = test_set.create_batches(-1, seq_length, shuffle=True)
+        data = data.squeeze(0)
+        labels = labels.squeeze(0)
+        batch_size = data.shape[1]
+    
+         # result lists
+        mu_notn = []; sig_notn = []
+        mu_meds = []; sig_meds = []
+        mu_gmed = []; sig_gmed = []
+
+
+        mu_tubs = []; sig_tubs = []
+        tubs =  []
+        #p_values = []
+        # add tubs 
+        for tub in models:
+            mu_tubs.append([])
+            sig_tubs.append([])
+            h_tub = tub.model.init_state(batch_size)
+            tubs.append((h_tub, tub))
+        for i in range(data.shape[0]):
+            x = data[i]
+            y = labels[i]
+
+            # repeat global median for each input image
+            gmedian = torch.zeros_like(x)
+            gmedian[:,:] = global_median
+            # find the corresponding median for each input image
+            median = torch.zeros_like(x)
+            for i in range(10):
+                median[y==i,:] = meds[i]
+
+            # calculate hidden state
+            if activity == 'post': # apply rely
+                 h_meds = torch.relu((x - median))
+                 h_gmed = torch.relu((x - gmedian))
+            else:
+                h_meds = (x - median)
+                h_gmed = (x - gmedian)
+           
+           
+
+            # calculate L1 loss for each unit, assuming equal amounts of units in each model
+            m_notn = x.abs().sum(dim=1)/tub.model.hidden_size
+            m_meds = h_meds.abs().sum(dim=1)/tub.model.hidden_size
+            m_gmed = h_gmed.abs().sum(dim=1)/tub.model.hidden_size
+           
+
+            # Calculate the mean
+            mu_notn.append(m_notn.mean().cpu().item())
+            mu_meds.append(m_meds.mean().cpu().item())
+            mu_gmed.append(m_gmed.mean().cpu().item())
+            
+            
+
+            # Calculate the standard error of the mean
+            sig_notn.append(m_notn.std().cpu().item()/np.sqrt(batch_size))
+            sig_meds.append(m_meds.std().cpu().item()/np.sqrt(batch_size))
+            sig_gmed.append(m_gmed.std().cpu().item()/np.sqrt(batch_size))
+
+            # Calculate mean and std of tubs
+           # tests = []
+            for i, (h_tub, tub) in enumerate(tubs):
+                h_tub, l_tub = tub.model(x, state=h_tub) 
+                if activity == 'post':
+                    m_tub = torch.cat([torch.relu(a) for a in [l_tub[1]]], dim=1).mean(dim=1)
+                else:
+                    m_tub = torch.cat([a for a in [l_tub[1]]], dim=1).abs().mean(dim=1) # EDITED orginal expr: 'torch.cat([a for a in l_tub], dim=1).abs().mean(dim=1)'
+                tubs[i] = h_tub, tub # update state of tub
+                mu_tubs[i].append(m_tub.mean().cpu().item())
+                sig_tubs[i].append(m_tub.std().cpu().item()/np.sqrt(batch_size))
+                #tests.append(_t_test(m_gmed, m_tub),)#
+            # Perform welch's t-test on relevant adjacent pairs
+            #p_values.append(tests)
+
+
+        fig, axes = plt.subplots(1, figsize=(14,10))
+        if activity == 'post':
+            fig.suptitle('Mean activity at final timestep for loss term ' + title)
+        else:
+            fig.suptitle('Mean preactivation at final timestep for loss term ' + title)
+        x = np.arange(1,data.shape[0]+1)
+
+        axes.errorbar(x, mu_notn, yerr=sig_notn, capsize=4, label="input")
+        axes.errorbar(x, mu_meds, yerr=sig_meds, capsize=4, label="cat. median")
+        axes.errorbar(x, mu_gmed, yerr=sig_gmed, capsize=4, label="median")
+        for i, (h_tub, tub) in enumerate(tubs):
+            axes.errorbar(x, mu_tubs[i], yerr=sig_tubs[i], capsize=4, label="Bathtub (beta= " +str(betas[i])+")")
+
+
+        # Plot asterisks for statistical significance between adjacent pairs of means
+        def sig_asterix(m1, m2, p):
+            y = (m1 - m2) / 2 + m2
+            if p < 0.001:
+                axes.text(i+1, y-0.0005, r'***', fontsize=16)
+            elif p < 0.01:
+                axes.text(i+1, y-0.0005, r'**', fontsize=16)
+            elif p < 0.05:
+                axes.text(i+1, y-0.0005, r'*', fontsize=16)
+            else:
+                axes.text(i+1, y-0.0005, r'$-$', fontsize=16)
+        #for i in range(1,9):
+            #for j in range(len(mu_tubs)):
+                #sig_asterix(mu_gmed[i], mu_tubs[j][i], p_values[i][j])
+       
+
+        axes.xaxis.set_major_locator(MaxNLocator(integer=True));
+        axes.set_xlabel(r"time $\longrightarrow$",fontsize=16)
+        axes.set_ylabel("Mean absolute activity",fontsize=16)
+        axes.legend(fontsize=16)
+        axes.grid()
+        fig.tight_layout()
+        
+        
+def final_mea(betas,
+                  models,
+                  training_set:Dataset,
+                  test_set:Dataset,
+                  seq_length=9,
+                  title='a', 
+                  activity='pre',
+                  seed=2732,
+                  scalex='linear',
+                  scaley='linear',
+                  save=True):
+    if seed is None:
+        seed = np.random.randint(1e4)
+        print(seed)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+        
+    # category medians and median for all images
+    meds = mnist.medians(training_set)
+    global_median = training_set.x.median(dim=0).values
+    
+    with torch.no_grad():
+        data, labels = test_set.create_batches(-1, seq_length, shuffle=True)
+        data = data.squeeze(0)
+        labels = labels.squeeze(0)
+        batch_size = data.shape[1]
+    
+      
+
+        mu_tubs = []; sig_tubs = []
+        mu_meds = []; sig_meds = []
+        mu_gmed = []; sig_gmed = []
+        tubs =  []
+        #p_values = []
+        # add tubs 
+        for tub in models:
+            mu_tubs.append([])
+            sig_tubs.append([])
+            h_tub = tub.model.init_state(batch_size)
+            tubs.append((h_tub, tub))
+        for i in range(data.shape[0]):
+            x = data[i]
+            y = labels[i]
+            
+            # repeat global median for each input image
+            gmedian = torch.zeros_like(x)
+            gmedian[:,:] = global_median
+            # find the corresponding median for each input image
+            median = torch.zeros_like(x)
+            for i in range(10):
+                median[y==i,:] = meds[i]
+
+
+
+
+           # calculate hidden state
+            if activity == 'post': # apply relu
+                 h_meds = torch.relu((x - median))
+                 h_gmed = torch.relu((x - gmedian))
+            else:
+                h_meds = (x - median)
+                h_gmed = (x - gmedian)
+           
+
+            # calculate L1 loss for each unit, assuming equal amounts of units in each model
+         
+            m_meds = h_meds.abs().sum(dim=1)/tub.model.hidden_size
+            m_gmed = h_gmed.abs().sum(dim=1)/tub.model.hidden_size
+            mu_meds.append(m_meds.mean().cpu().item())
+            mu_gmed.append(m_gmed.mean().cpu().item())
+        # Calculate mean and std of tubs
+           # tests = []
+            for i, (h_tub, tub) in enumerate(tubs):
+                h_tub, l_tub = tub.model(x, state=h_tub) 
+                if activity == 'post':
+                    m_tub = torch.cat([torch.relu(a) for a in [l_tub[1]]], dim=1).mean(dim=1)
+                else:
+                    m_tub = torch.cat([a for a in [l_tub[1]]], dim=1).abs().mean(dim=1) # EDITED orginal expr: 'torch.cat([a for a in l_tub], dim=1).abs().mean(dim=1)'
+                tubs[i] = h_tub, tub # update state of tub
+                mu_tubs[i].append(m_tub.mean().cpu().item())
+                sig_tubs[i].append(m_tub.std().cpu().item()/np.sqrt(batch_size))
+          
+
+
+        fig, axes = plt.subplots(1, figsize=(14,10))
+        if activity == 'post':
+            fig.suptitle('Mean activity at final timestep for loss term ' + title)
+        else:
+            fig.suptitle('Mean preactivation at final timestep for loss term ' + title)
+        x = np.arange(1,data.shape[0]+1)
+
+        mu_values = []
+        for i, (h_tub, tub) in enumerate(tubs):
+            mu_values.append(mu_tubs[i][-1]) # only look at final time steps
+            #axes.errorbar(x, mu_tubs[i], yerr=sig_tubs[i], capsize=4, label="Bathtub (beta= " +str(betas[i])+")")
+        mu_meds = [np.mean(mu_meds) for beta in betas]
+        mu_gmed = [np.mean(mu_gmed) for beta in betas]
+        axes.plot(betas, mu_values, label='models with loss term:'+title)
+        axes.plot(betas, mu_meds, label='Category Median (Average)')
+        axes.plot(betas, mu_gmed, label='Global Median (Average)')
+       
+        axes.xaxis.set_major_locator(MaxNLocator(integer=True));
+        axes.set_xlabel(r"beta $\longrightarrow$",fontsize=16)
+        if activity == 'post':
+            axes.set_ylabel("Mean activity",fontsize=16)
+        else:
+            axes.set_ylabel("Mean preactivation",fontsize=16)
+        axes.legend(fontsize=16)
+        axes.set_xticks(betas)
+        if scalex == 'log':
+            axes.set_xscale('symlog', linthreshx=10**-10)
+        if scaley == 'log':
+            axes.set_yscale('symlog', linthreshx=10**-10)
+     
+        axes.grid()
+        fig.tight_layout()
+        
+        
+def mean_synaptrans(betas,
+                  models,
+                  training_set:Dataset,
+                  test_set:Dataset,
+                  seq_length=9,
+                  title='a', 
+                  seed=2732,
+                  save=True):
+    if seed is None:
+        seed = np.random.randint(1e4)
+        print(seed)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+     # category medians and median for all images
+    meds = mnist.medians(training_set)
+    global_median = training_set.x.median(dim=0).values    
+
+    
+    with torch.no_grad():
+        data, labels = test_set.create_batches(-1, seq_length, shuffle=True)
+        data = data.squeeze(0)
+        labels = labels.squeeze(0)
+        batch_size = data.shape[1]
+    
+      
+
+        mu_tubs = []; sig_tubs = []
+        mu_meds = []; sig_meds = []
+        mu_gmed = []; sig_gmed = []
+        tubs =  []
+        #p_values = []
+        # add tubs 
+        for tub in models:
+            mu_tubs.append([])
+            sig_tubs.append([])
+            h_tub = tub.model.init_state(batch_size)
+            tubs.append((h_tub, tub))
+        for i in range(data.shape[0]):
+            x = data[i]
+            y = labels[i]
+            
+                # repeat global median for each input image
+            gmedian = torch.zeros_like(x)
+            gmedian[:,:] = global_median
+            # find the corresponding median for each input image
+            median = torch.zeros_like(x)
+            for i in range(10):
+                median[y==i,:] = meds[i]
+
+
+
+
+         
+            h_meds =  median
+            h_gmed = gmedian
+           
+
+            # calculate L1 loss for each unit, assuming equal amounts of units in each model
+         
+            m_meds = h_meds.abs().sum(dim=1)/tub.model.hidden_size
+            m_gmed = h_gmed.abs().sum(dim=1)/tub.model.hidden_size
+            mu_meds.append(m_meds.mean().cpu().item())
+            mu_gmed.append(m_gmed.mean().cpu().item())
+      
+        # Calculate mean and std of tubs
+           # tests = []
+            for i, (h_tub, tub) in enumerate(tubs):
+                h_tub, l_tub = tub.model(x, state=h_tub, synap_trans=True)
+                m_tub = torch.cat([a for a in [l_tub[1]]], dim=1).abs().mean(dim=1) # EDITED orginal expr: 'torch.cat([a for a in l_tub], dim=1).abs().mean(dim=1)'
+                tubs[i] = h_tub, tub # update state of tub
+                mu_tubs[i].append(m_tub.mean().cpu().item())
+                sig_tubs[i].append(m_tub.std().cpu().item()/np.sqrt(batch_size))
+          
+
+
+        fig, axes = plt.subplots(1, figsize=(14,10))
+        fig.suptitle('synaptic transmission over time for loss term ' + title)
+        x = np.arange(1,data.shape[0]+1)
+        #axes.errorbar(x, mu_meds, yerr=sig_meds, capsize=4, label="cat. median")
+        #axes.errorbar(x, mu_gmed, yerr=sig_gmed, capsize=4, label="median")
+        axes.plot(x, mu_meds, label='Category Median (Average)')
+        axes.plot(x, mu_gmed, label='Global Median (Average)')
+        #mu_values = []
+        for i, (h_tub, tub) in enumerate(tubs):
+            #mu_values.append(mu_tubs[i][-1]) # only look at final time steps
+            axes.errorbar(x, mu_tubs[i], yerr=sig_tubs[i], capsize=4, label="Bathtub (beta= " +str(betas[i])+")")
+            
+        #axes.plot(betas, mu_values)
+
+       
+        axes.xaxis.set_major_locator(MaxNLocator(integer=True));
+        axes.set_xlabel(r"time $\longrightarrow$",fontsize=16)
+        axes.set_ylabel("Synaptic Transmission",fontsize=16)
+        axes.legend(fontsize=16)
+
+
+        axes.grid()
+        fig.tight_layout()
+
+
+        
+        
+def final_synaptrans(betas,
+                  models,
+                  training_set:Dataset,
+                  test_set:Dataset,
+                  seq_length=9,
+                  title='a', 
+                  seed=2732,
+                  scale='linear',
+                  save=True):
+    if seed is None:
+        seed = np.random.randint(1e4)
+        print(seed)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+        
+     # category medians and median for all images
+    meds = mnist.medians(training_set)
+    global_median = training_set.x.median(dim=0).values
+    
+    with torch.no_grad():
+        data, labels = test_set.create_batches(-1, seq_length, shuffle=True)
+        data = data.squeeze(0)
+        labels = labels.squeeze(0)
+        batch_size = data.shape[1]
+    
+      
+
+        mu_tubs = []; sig_tubs = []
+        mu_meds = []; sig_meds = []
+        mu_gmed = []; sig_gmed = []
+        tubs =  []
+        #p_values = []
+        # add tubs 
+        for tub in models:
+            mu_tubs.append([])
+            sig_tubs.append([])
+            h_tub = tub.model.init_state(batch_size)
+            tubs.append((h_tub,tub))
+        for i in range(data.shape[0]):
+            x = data[i]
+            y = labels[i]
+            
+            gmedian = torch.zeros_like(x)
+            gmedian[:,:] = global_median
+            # find the corresponding median for each input image
+            median = torch.zeros_like(x)
+            for i in range(10):
+                median[y==i,:] = meds[i]
+
+
+
+
+         
+            h_meds = median
+            h_gmed = gmedian
+           
+
+            # calculate L1 loss for each unit, assuming equal amounts of units in each model
+         
+            m_meds = h_meds.abs().sum(dim=1)/tub.model.hidden_size
+            m_gmed = h_gmed.abs().sum(dim=1)/tub.model.hidden_size
+            mu_meds.append(m_meds.mean().cpu().item())
+            mu_gmed.append(m_gmed.mean().cpu().item())
+      
+        # Calculate mean and std of tubs
+           # tests = []
+            for i, (h_tub, tub) in enumerate(tubs):
+                h_tub, l_tub = tub.model(x, state=h_tub, synap_trans=True) 
+                tubs[i] = h_tub, tub # update state of tub
+                m_tub = torch.cat([a for a in [l_tub[1]]], dim=1).abs().mean(dim=1) # EDITED orginal expr: 'torch.cat([a for a in l_tub], dim=1).abs().mean(dim=1)'
+                mu_tubs[i].append(m_tub.mean().cpu().item())
+                sig_tubs[i].append(m_tub.std().cpu().item()/np.sqrt(batch_size))
+          
+
+
+        fig, axes = plt.subplots(1, figsize=(14,10))
+        fig.suptitle('synaptic transmission at final time step for loss term ' + title)
+        x = np.arange(1,data.shape[0]+1)
+
+        mu_values = []
+        for i, (h_tub, tub) in enumerate(tubs):
+            mu_values.append(mu_tubs[i][-1]) # only look at final time steps
+           # axes.errorbar(x, mu_tubs[i], yerr=sig_tubs[i], capsize=4, label="Bathtub (beta= " +str(betas[i])+")")
+            
+        mu_meds = [np.mean(mu_meds) for beta in betas]
+        mu_gmed = [np.mean(mu_gmed) for beta in betas]
+        axes.plot(betas, mu_values, label='models with loss term:'+title)
+        axes.plot(betas, mu_meds, label='Category Median (Average)')
+        axes.plot(betas, mu_gmed, label='Global Median (Average)')
+        
+       
+        axes.xaxis.set_major_locator(MaxNLocator(integer=True));
+        axes.set_xlabel(r"beta $\longrightarrow$",fontsize=16)
+        axes.set_ylabel("Synaptic Transmission",fontsize=16)
+        axes.legend(fontsize=16)
+        axes.set_xticks(betas)
+        if scale == 'log':
+            axes.set_xscale('symlog', linthreshx=10**-10)
+        axes.grid()
+        fig.tight_layout()
+    
+    
+    
+    
+    
