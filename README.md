@@ -1,4 +1,4 @@
-# EmergentPredictiveCoding
+# Energy efficient predictive coding networks
 ##Description
 Supplementary material for 'Predictive coding is a consequence of energy efficiency in recurrent  neural networks'
 ###Dependencies
@@ -14,7 +14,7 @@ Supplementary material for 'Predictive coding is a consequence of energy efficie
 'python train_models.py'
 If a gpu is available and cuda set up the script will run on the gpu, otherwise it will revert back to cpu. 
 
-## A more details will follow soon
+## more details will follow soon
 
 
 
