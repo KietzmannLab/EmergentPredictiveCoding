@@ -1,9 +1,24 @@
 # EmergentPredictiveCoding
+##Description
+Supplementary material for 'Predictive coding is a consequence of energy efficiency in recurrent  neural networks'
+###Dependencies
+1. Numpy
+2. Pytorch 1.4.0
+3. Python  >= 3.6 
 
-Code and models accompanying the paper 'Predictive coding is a consequence of energy efficiency in recurrent neural networks .
+###Usage Notes:
 
-In work we show that two components of predictive coding, namely error calculation units and prediction units, can emerge in certain conditions without being explicitly modelled.
+- To replicate the results in the paper, please see [paper_results.ipynb](https://github.com/KietzmannLab/EmergentPredictiveCoding/blob/master/paper_results%20.ipynb)  
+- To produce the 10 model instances used in determining the preactivations, please run train_models.py, i.e.
 
-The networks are trained to minimise the 'preactivation' of the neurons, i.e. the unit state before applying the activation function. The rationale is that this minimises neural activity, while preventing over-inhibition. It is akin to the method of excitatory-inhibitory balance used by [Denève et al. (2017)](https://doi.org/10.1016/j.neuron.2017.05.016).
+'python train_models.py'
+If a gpu is available and cuda set up the script will run on the gpu, otherwise it will revert back to cpu. 
 
-The notebook [paper_results.ipynb](https://github.com/KietzmannLab/EmergentPredictiveCoding/blob/master/paper_results%20.ipynb) 
+## A more details will follow soon
+
+
+
+
+
+
+
