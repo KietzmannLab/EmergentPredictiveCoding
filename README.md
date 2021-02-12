@@ -1,6 +1,6 @@
 # Energy efficient predictive coding networks
 
-## Description
+### Description
 Supplementary material for 'Predictive coding is a consequence of energy efficiency in recurrent  neural networks'
 
 ### Dependencies
