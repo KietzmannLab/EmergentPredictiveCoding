@@ -19,7 +19,7 @@ Supplementary material for 'Predictive coding is a consequence of energy efficie
 The script will automatically run on a gpu if a gpu is available and cuda is set up. Otherwise the script will run on the cpu.
 
 ### Data set
-We use the MNIST database of handwritten digits (LeCun, 1998). We created a wrapper 'mnist.py' that transforms the mnist digits into sequences of digits in ascending order (with wraparound at 9 and 0). The sequenced data set is used as data for the networks. The appropriate training and test data can be created by simply calling: 
+We use the MNIST database of handwritten digits. We created a wrapper 'mnist.py' that loads and transforms the mnist digits into sequences of digits in ascending order (with wraparound at 9 and 0). The sequenced data set is used as data for the networks. The appropriate training and test data can be created by simply calling: 
 
 ```import mnist```
 
@@ -42,8 +42,6 @@ Ali, A., Ahmad N., de Groot E., van Gerven M.A.J., Kietzmann T.C. (2021). **Pred
 
 ### References
 Ali, A., Ahmad N., de Groot E., van Gerven M.A.J., Kietzmann T.C. (2021). **Predictive coding is a consequence of energy efficiency in recurrent neural networks.** 
-
-LeCun, Y., Bottou, L., Bengio, Y., & Haffner, P. (1998). **Gradient-based learning applied to document recognition.** Proceedings of the IEEE, 86(11), 2278-2324.
 
 ### more details will follow soon
 
