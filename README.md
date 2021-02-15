@@ -16,9 +16,11 @@ Supplementary material for 'Predictive coding is a consequence of energy efficie
 ```python train_models.py```
 
 
-The script will automatically run on a gpu if a gpu is available and cuda is set up. Otherwise the script will run on the cpu.
+The script will automatically run on a gpu if a gpu is available and cuda is set up. Otherwise the script will revert back to cpu. If multiple gpu nodes are available, you can select which node you want the script to run on by prepending CUDA_VISIBLE_DEVICES, i.e:
 
-### Data set
+```CUDA_VISIBLE_DEVICES=GPU_ID python train_models.py```
+
+### Data Set
 We use the MNIST database of handwritten digits. We created a wrapper 'mnist.py' that loads and transforms the mnist digits into sequences of digits in ascending order (with wraparound from 9 to 0). The sequenced data set is used as data for the networks. The appropriate training and test data can be created by simply calling: 
 
 ```import mnist```
