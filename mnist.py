@@ -19,6 +19,7 @@ class MNISTDataset(Dataset):
 def create_sequences(dataset, sequence_length, batch_size, shuffle=True, fixed_starting_point=None):
     # number of datapoints
     data_size = dataset.x.shape[0]
+
     # maximum theoretical amount of sequences
     max_sequences = int(data_size / sequence_length)
 

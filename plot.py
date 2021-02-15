@@ -1,20 +1,13 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-import pandas as pd
 import os
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from matplotlib import cycler
-from sklearn.manifold import MDS, TSNE
-from scipy.stats import pearsonr
-from scipy.stats import ttest_ind
-from sklearn.mixture import GaussianMixture, BayesianGaussianMixture
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score, euclidean_distances
-from sklearn.metrics.pairwise import cosine_distances
-
+import bootstrapped.bootstrap as bs
+import bootstrapped.stats_functions as bs_stats
 import mnist
 from functions import *
 from Dataset import Dataset
@@ -25,30 +18,32 @@ from ModelState import ModelState
 
 colors = cycler('color',
                 ['#EE6666', '#3388BB', '#9988DD',
-                 '#EECC55', '#88BB44', '#FFBBBB'])
+                  '#EECC55', '#88BB44', '#FFBBBB'])
+
+
 plt.rc('axes', axisbelow=True, prop_cycle=colors)
 plt.rc('grid', linestyle='--')
 plt.rc('xtick', direction='out', color='black')
 plt.rc('ytick', direction='out', color='black')
 plt.rc('lines', linewidth=2)
-plt.rc('errorbar', capsize=4)
+
+#plt.rc('errorbar', capsize=4)
 # for a bit nicer font in plots
-mpl.rcParams['font.family'] = ['serif']
-mpl.rcParams['font.size'] = 12
+mpl.rcParams['font.family'] = ['sans-serif']
+mpl.rcParams['font.size'] = 18
+mpl.use('ps')
+plt.style.use('ggplot')
 
-
-
-#
 # ---------------     Convenience functions     ---------------
 #
 
 def save_fig(fig, name, bbox_inches=None):
-    """Convienience wrapper for saving figures in a default "../figures/" directory and auto appends file extension ".png"
+    """Convenience wrapper for saving figures in a default "../figures/" directory and auto appends file extension ".svg"
     """
-    filepath = "../figures/" + name
+    filepath = "Figures/" + name
     if not os.path.isdir(os.path.dirname(filepath)):
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    fig.savefig(filepath + ".png", bbox_inches=bbox_inches)
+    fig.savefig(filepath + ".svg", bbox_inches=bbox_inches)
 
 def axes_iterator(axes):
     """Iterate over axes. Whether it is a single axis object, a list of axes, or a list of a list of axes
@@ -111,6 +106,7 @@ def display(imgs,
         - axes_visible: show/hide axes. Default: True
         - layout: matplotlib layout. Default: 'regular'
         - figax: if not 'None', use existing figure and axes object. Default: None
+        -cmaps: pass list of colormaps 
     """
     if not isinstance(imgs, list):
         imgs = [imgs]
@@ -131,17 +127,18 @@ def display(imgs,
         fig, axes = init_axes(len(imgs), figsize, shape=shape, colorbar=colorbar)
     else:
         fig, axes = figax
-
+  
     for i, ax in enumerate(axes_iterator(axes)):
+       
         img = imgs[i]
-
+        ax.grid()
         if size is None:
             _size = int(np.sqrt(img.size))
             img = img[:_size*_size].reshape(_size,_size)
         else:
             img = img[:size[0]*size[1]].reshape(size[0],size[1])
-
-        plot_im = ax.imshow(img, cmap=cmap)
+  
+        plot_im = ax.imshow(img,cmap=cmap)
 
         ax.label_outer()
 
@@ -151,9 +148,12 @@ def display(imgs,
         if axes_visible == False:
             ax.tick_params(axis='both', which='both', bottom=False, top=False, labelbottom=False, right=False, left=False, labelleft=False)
 
+  
     if colorbar:
+  
         if isinstance(axes, np.ndarray):
             for rax in axes:
+        
                 if isinstance(rax, np.ndarray):
                     fig.colorbar(plot_im, ax=rax, shrink=0.80, location='right');
                 else:
@@ -232,110 +232,188 @@ def scatter(x, y, discrete=False, figsize=(8,6), xlabel="", ylabel="", legend=No
 
     return fig, axes
 
+def training_progress(net:ModelState, save=True):
+    """
+    
+    wrapper function that shows model training
 
-#
-# ---------------     Plots from the thesis     ---------------
-#
+    """
+    fig, axes = init_axes(1, figsize=(6,8))
 
-#
-# Section 3.4
-#
 
-def example_mnist_sequences(test_set:Dataset, save=True):
-    data, labels = test_set.create_batches(-1, 5, shuffle=False)
-    data = data.squeeze(0)
-    fig, axes = display(
-        [data[i,0,:] for i in range(5)] +
-        [data[i,7,:] for i in range(5)]
-        ,layout='tight'
-        ,axes_visible=False);
-    fig.text(0.5, -0.04, r"time $\longrightarrow$", ha='center', fontsize=30);
-    axes[0][0].set_ylabel(r"1:", ha='center', fontsize=30, rotation=0, labelpad=30)
-    axes[1][0].set_ylabel(r"2:", ha='center', fontsize=30, rotation=0, labelpad=30)
-    if save is True:
-        save_fig(fig, "/mnist-misc/example-sequences", bbox_inches='tight')
+    axes.plot(np.arange(1, len(net.results["train loss"])+1), net.results["train loss"], label="Training set")
+    axes.plot(np.arange(1, len(net.results["test loss"])+1), net.results["test loss"], label="Test set")
 
-def mnist_medians(training_set:Dataset, save=True):
-    meds = mnist.medians(training_set)
-
-    fig, axes = display([meds[i] for i in range(10)], shape=(5,2), axes_visible=False)
-    for i,ax in enumerate(axes.flat):
-        ax.set_xlabel(str(i), fontsize=30, labelpad=5)
-    fig.tight_layout()
-    if save is True:
-        save_fig(fig, "/mnist-misc/mnist-medians", bbox_inches='tight')
-
-def mnist_median(training_set:Dataset, save=True):
-    fig, axes = display(training_set.x.median(dim=0).values, axes_visible=False);
-    if save is True:
-        save_fig(fig, "../figures/mnist-misc/mnist-median")
-
-def mnist_sum(training_set:Dataset, save=True):
-    s = training_set.x.sum(dim=0)
-    s[training_set.x.sum(dim=0) > 1] = 1
-    fig, axes = display(s, axes_visible=False);
-    if save is True:
-        save_fig(fig, "../figures/mnist-misc/mnist-sum")
-
-#
-# Section 4.1
-#
-
-def training_progress(lstm:ModelState, rnn:ModelState, tub:ModelState, save=True):
-    fig, axes = init_axes(4, figsize=(6,8), shape=(2,2))
-
-    #x = np.arange(1, 201)
-
-    axes[0][0].plot(np.arange(1, len(lstm.results["train loss"])+1), lstm.results["train loss"], label="Training set")
-    axes[0][0].plot(np.arange(1, len(lstm.results["test loss"])+1), lstm.results["test loss"], label="Test set")
-
-    axes[0][1].plot(np.arange(1, len(rnn.results["train loss"])+1), rnn.results["train loss"], label="Training set")
-    axes[0][1].plot(np.arange(1, len(rnn.results["test loss"])+1), rnn.results["test loss"], label="Test set")
-
-    axes[1][0].plot(np.arange(1, len(tub.results["train loss"])+1), tub.results["train loss"], label="Training set")
-    axes[1][0].plot(np.arange(1, len(tub.results["test loss"])+1), tub.results["test loss"], label="Test set")
-
-    axes[1][1].plot(np.arange(1, len(lstm.results["train loss"])+1), lstm.results["train loss"], label="LSTM")
-    axes[1][1].plot(np.arange(1, len(rnn.results["train loss"])+1), rnn.results["train loss"], label="SRN")
-    axes[1][1].plot(np.arange(1, len(tub.results["train loss"])+1), tub.results["train loss"], label="Bathtub")
    
-    for ax, label in zip(axes.flat, [('a','LSTM'),('b','SRN'),('c','Bathtub'),('d','All')]):
-        ax.xaxis.set_major_locator(MaxNLocator(integer=True));
-        ax.set_xlabel(r"Training time $\longrightarrow$",fontsize=16)
-        ax.set_ylabel("Loss",fontsize=16)
-        ax.legend()
-        ax.set_title("("+label[0]+") "+label[1], fontsize=18)
-        ax.grid()
-
+   
+  
+    axes.xaxis.set_major_locator(MaxNLocator(integer=True));
+    axes.set_xlabel("Training time",fontsize=16)
+    axes.set_ylabel("Loss",fontsize=16)
+    axes.legend()
+    axes.set_title('Loss network', fontsize=18)
+    axes.grid(True)
+    axes.spines['right'].set_visible(False)
+    axes.spines['top'].set_visible(False)
     fig.tight_layout()
 
     if save is True:
         save_fig(fig, "training-progress", bbox_inches='tight')
+#
+# ---------------     Plotting code for figures paper     ---------------
+#
 
-def _t_test(m1, m2):
-    """Convenience wrapper around scipy.stat.ttest_ind"""
-    t, p = ttest_ind(m1, m2, equal_var = False)
-    return p
 
-def model_activity(lstm:ModelState,
-                   rnn:ModelState,
-                   tub:ModelState,
+#
+# Figure 2 and Figure 5B
+#
+def bootstrap_model_activity(net_list:[ModelState],
                    training_set:Dataset,
                    test_set:Dataset,
-                   seq_length=9,
+                   seq_length=10,
+                   seed=2732,
+                   lesioned=False,
+                   save=True):
+    """
+    
+    Calculates preactivation of models and 
+    theoretical bounds (input, data median, category median)
+    all CI 95% bootstrapped with replacement
+
+    """
+    notn_samples, meds_samples = np.zeros((len(net_list), seq_length)), np.zeros((len(net_list), seq_length))
+    gmed_samples, net_samples = np.zeros((len(net_list), seq_length)), np.zeros((len(net_list), seq_length))
+    
+ 
+    net_les_samples = np.zeros((len(net_list), seq_length))
+    for i, net in enumerate(net_list):
+        data, mu_notn, mu_meds, mu_gmed, mu_net, mu_netles =\
+        model_activity_lesioned(net, training_set, test_set, seq_length, seed, save)
+        # fill sample arrays (model_instances x sequence_length)
+        notn_samples[i,:] = mu_notn; meds_samples[i,:]= mu_meds
+        gmed_samples[i,:] = mu_gmed; net_samples[i,:] = mu_net
+        net_les_samples[i,:] = mu_netles
+        
+                  
+ 
+    
+    # compute bootstrap bounds for each time point 
+    bs_notn, bs_meds, bs_gmed, bs_net, bs_netles = compute_bootstrap(notn_samples, \
+                                                                         meds_samples, \
+                                                                             gmed_samples, \
+                                                                                 net_samples, net_les_samples)
+    # non lesioned netults
+    display_model_activity(data, [bs_notn, bs_meds, bs_gmed, bs_net, bs_netles]\
+                           ,notn_samples,meds_samples, gmed_samples,net_samples, net_les_samples, save=save)
+    # display lesioned results 
+    display_model_activity(data, [bs_notn, bs_meds, bs_gmed, bs_net, bs_netles]\
+                           ,notn_samples,meds_samples, gmed_samples,net_samples, net_les_samples, lesioned=True, save=save)
+        
+def compute_bootstrap(notn, meds, gmed, net, net_les=None ,seq_length=10):
+    """ compute bootstrap bounds for each time point"""  
+    bs_notn, bs_meds, bs_gmed, bs_net, bs_netles = [],[],[],[], []
+    
+    for t in range(seq_length):
+        bs_notn.append(bs.bootstrap(notn[:,t], stat_func=bs_stats.mean, iteration_batch_size=None))
+        bs_meds.append(bs.bootstrap(meds[:, t], stat_func=bs_stats.mean, iteration_batch_size=None))
+        bs_gmed.append(bs.bootstrap(gmed[:, t], stat_func=bs_stats.mean, iteration_batch_size=None))
+        bs_net.append(bs.bootstrap(net[:, t], stat_func=bs_stats.mean, iteration_batch_size=None))
+        
+        if net_les is not None:
+            bs_netles.append(bs.bootstrap(net_les[:, t], stat_func=bs_stats.mean, iteration_batch_size=None))
+            
+    return bs_notn, bs_meds, bs_gmed, bs_net, bs_netles
+
+def extract_lower_upper(bs_list):
+    """
+    wrapper function that extracts upper and lower bounds of the confidence
+    interval 
+    """
+    lower, upper  = [bs.lower_bound for bs in bs_list], [bs.upper_bound for bs in bs_list]
+    return lower,upper
+    
+
+        
+   
+def display_model_activity(data,
+                           bootstraps,
+                           notn_samples,
+                           meds_samples,
+                           gmed_samples,
+                           net_samples, 
+                           net_les_samples,
+                           lesioned = False,
+                           save=True): 
+    
+    bs_notn, bs_meds, bs_gmed, bs_net, bs_netles = bootstraps   
+    # create figure plot mean values and 95% CI
+    fig, axes = plt.subplots(1, figsize=(14,10))
+   
+    x = np.arange(1,data.shape[0]+1)
+    mu_gmed = np.mean(gmed_samples, axis=0) # empirical mean of global median
+    axes.plot(x, mu_gmed, label="dataset median inhibition", color= '0.2')
+    lower_gmed, upper_gmed = extract_lower_upper(bs_gmed)
+    axes.fill_between(x, lower_gmed, upper_gmed, color='0.2', alpha=0.3) 
+    mu_meds = np.mean(meds_samples, axis=0) # empirical mean of category median
+    axes.plot(x, mu_meds, label="category median inhibition", color='0.7')
+    lower_med, upper_med = extract_lower_upper(bs_meds)
+    axes.fill_between(x, lower_med, upper_med, color='0.7', alpha=0.3) 
+    
+    # add a space between bounds and data that is input-dependent
+    axes.plot([],[], linestyle='', label=' ')
+    
+    if not lesioned: # add input drive to the figure
+        mu_notn = np.mean(notn_samples, axis=0) # empirical mean of input drive sequences
+        axes.plot(x, mu_notn, label="input", color= '#3388BB')
+        lower_notn, upper_notn = extract_lower_upper(bs_notn)
+        axes.fill_between(x, lower_notn, upper_notn, color='#3388BB', alpha=0.3) 
+    mu_net = np.mean(net_samples, axis=0) # empirical mean of reservoir activity   
+    axes.plot(x, mu_net, label="RNN", color= '#EE6666')
+    lower_net, upper_net = extract_lower_upper(bs_net)
+    axes.fill_between(x, lower_net, upper_net, color='#EE6666', alpha=0.3) 
+   
+    if lesioned: # add lesioned reservoir to the figure 
+        mu_netles = np.mean(net_les_samples, axis=0) # empirical mean of sample set
+        axes.plot(x, mu_netles, label="prediction units lesioned", color= '#EECC55')
+        lower_netles, upper_netles = extract_lower_upper(bs_netles)
+        axes.fill_between(x, lower_netles, upper_netles, color='#EECC55', alpha=0.3) 
+
+    axes.xaxis.set_major_locator(MaxNLocator(integer=True));
+  
+    axes.legend(fontsize=18,labelspacing=0.1, facecolor='0.95')
+    axes.grid(True)
+    axes.spines['right'].set_visible(False)
+    axes.spines['top'].set_visible(False)
+    axes.xaxis.set_tick_params(which='major', size=10, width=2, labelsize=16)
+    axes.yaxis.set_tick_params(which='major', size=10, width=2, labelsize=16)
+
+    if save is True:
+        if lesioned:
+            save_fig(fig, "lesioned-model-activity", bbox_inches='tight')
+        else:
+            save_fig(fig, "model-activity", bbox_inches='tight')
+            
+     
+def model_activity(net:ModelState,
+                   training_set:Dataset,
+                   test_set:Dataset,
+                   seq_length=10,
                    seed=2732,
                    save=True):
-    # Use a seed for reproducability
-    if seed is None:
-        seed = np.random.randint(1e4)
-        print(seed)
-    torch.manual_seed(seed)
-    np.random.seed(seed)
+    """
+    calculates model preactivation  and preactivation bounds 
+    for unlesioned models 
+    """
+  
+    if seed is not None:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
 
     # category medians and median for all images
     meds = mnist.medians(training_set)
     global_median = training_set.x.median(dim=0).values
-
+    N = 784
+    
     with torch.no_grad():
         data, labels = test_set.create_batches(-1, seq_length, shuffle=True)
         data = data.squeeze(0)
@@ -343,22 +421,19 @@ def model_activity(lstm:ModelState,
         batch_size = data.shape[1]
 
         # result lists
-        mu_notn = []; sig_notn = []
-        mu_meds = []; sig_meds = []
-        mu_gmed = []; sig_gmed = []
-        mu_lstm = []; sig_lstm = []
-        mu_rnn = []; sig_rnn = []
-        mu_tub = []; sig_tub = []
-
-        p_values = []
-
-        h_lstm = lstm.model.init_state(batch_size)
-        h_rnn = rnn.model.init_state(batch_size)
-        h_tub = tub.model.init_state(batch_size)
-
-        for i in range(data.shape[0]):
-            x = data[i]
-            y = labels[i]
+        mu_notn = [] 
+        mu_meds = []
+        mu_gmed = []
+        mu_net = []
+       
+        hidden_size = net.model.hidden_size
+        h_net = torch.zeros(batch_size, N)
+        h_net = net.model.init_state(batch_size)
+            
+        for t in range(data.shape[0]):
+        
+            x = data[t]
+            y = labels[t]
 
             # repeat global median for each input image
             gmedian = torch.zeros_like(x)
@@ -371,171 +446,104 @@ def model_activity(lstm:ModelState,
             # calculate hidden state
             h_meds = (x - median)
             h_gmed = (x - gmedian)
-            h_lstm, l_lstm = lstm.model(x, state=h_lstm)
-            h_rnn, l_rnn = rnn.model(x, state=h_rnn)
-            h_tub, l_tub = tub.model(x, state=h_tub) 
+           
 
             # calculate L1 loss for each unit, assuming equal amounts of units in each model
-            m_notn = x.abs().sum(dim=1)/tub.model.hidden_size
-            m_meds = h_meds.abs().sum(dim=1)/tub.model.hidden_size
-            m_gmed = h_gmed.abs().sum(dim=1)/tub.model.hidden_size
-            m_lstm = torch.cat([a for a in l_lstm], dim=1).abs().mean(dim=1)
-            m_rnn = torch.cat([a for a in l_rnn], dim=1).abs().mean(dim=1)
-            m_tub = torch.cat([a for a in [l_tub[1]]], dim=1).abs().mean(dim=1) # EDITED orginal expr: 'torch.cat([a for a in l_tub], dim=1).abs().mean(dim=1)'
+            m_notn = x.abs().sum(dim=1)/hidden_size
+            m_meds = h_meds.abs().sum(dim=1)/hidden_size
+            m_gmed = h_gmed.abs().sum(dim=1)/hidden_size
+            
+                
 
+            h_net, l_net = net.model(x, state=h_net) 
+            m_net = torch.cat([a for a in [l_net[1]]], dim=1).abs().mean(dim=1).mean()
+        
+                
             # Calculate the mean
             mu_notn.append(m_notn.mean().cpu().item())
             mu_meds.append(m_meds.mean().cpu().item())
             mu_gmed.append(m_gmed.mean().cpu().item())
-            mu_lstm.append(m_lstm.mean().cpu().item())
-            mu_rnn.append(m_rnn.mean().cpu().item())
-            mu_tub.append(m_tub.mean().cpu().item())
-
-            # Calculate the standard error of the mean
-            sig_notn.append(m_notn.std().cpu().item()/np.sqrt(batch_size))
-            sig_meds.append(m_meds.std().cpu().item()/np.sqrt(batch_size))
-            sig_gmed.append(m_gmed.std().cpu().item()/np.sqrt(batch_size))
-            sig_lstm.append(m_lstm.std().cpu().item()/np.sqrt(batch_size))
-            sig_rnn.append(m_rnn.std().cpu().item()/np.sqrt(batch_size))
-            sig_tub.append(m_tub.std().cpu().item()/np.sqrt(batch_size))
-
-            # Perform welch's t-test on relevant adjacent pairs
-            p_values.append([
-                _t_test(m_gmed, m_tub),
-                _t_test(m_tub, m_rnn),
-                _t_test(m_rnn, m_lstm),
-                _t_test(m_lstm, m_meds)
-            ])
+            mu_net.append(m_net.mean().cpu().item())
+            
 
 
-        fig, axes = plt.subplots(1, figsize=(14,10))
+        return data, np.array(mu_notn), np.array(mu_meds), np.array(mu_gmed), np.array(mu_net)
+      
 
-        x = np.arange(1,data.shape[0]+1)
 
-        axes.errorbar(x, mu_notn, yerr=sig_notn, capsize=4, label="input")
-        axes.errorbar(x, mu_meds, yerr=sig_meds, capsize=4, label="cat. median")
-        axes.errorbar(x, mu_gmed, yerr=sig_gmed, capsize=4, label="median")
-        axes.errorbar(x, mu_tub, yerr=sig_tub, capsize=4, label="Bathtub")
-        axes.errorbar(x, mu_lstm, yerr=sig_lstm, capsize=4, label="LSTM")
-        axes.errorbar(x, mu_rnn, yerr=sig_rnn, capsize=4, label="SRN")
-
-        # Plot asterisks for statistical significance between adjacent pairs of means
-        def sig_asterix(m1, m2, p):
-            y = (m1 - m2) / 2 + m2
-            if p < 0.001:
-                axes.text(i+1, y-0.0005, r'***', fontsize=16)
-            elif p < 0.01:
-                axes.text(i+1, y-0.0005, r'**', fontsize=16)
-            elif p < 0.05:
-                axes.text(i+1, y-0.0005, r'*', fontsize=16)
-            else:
-                axes.text(i+1, y-0.0005, r'$-$', fontsize=16)
-        for i in range(1,9):
-            sig_asterix(mu_gmed[i], mu_tub[i], p_values[i][0])
-            sig_asterix(mu_tub[i], mu_rnn[i], p_values[i][1])
-            sig_asterix(mu_rnn[i], mu_lstm[i], p_values[i][2])
-            sig_asterix(mu_lstm[i], mu_meds[i], p_values[i][3])
-
-        axes.xaxis.set_major_locator(MaxNLocator(integer=True));
-        axes.set_xlabel(r"time $\longrightarrow$",fontsize=16)
-        axes.set_ylabel("Mean absolute activity",fontsize=16)
-        axes.legend(fontsize=16)
-        axes.grid()
-        fig.tight_layout()
-
-        if save is True:
-            save_fig(fig, "model-activity", bbox_inches='tight')
 
 #
-# Section 4.2
+# Figure 3 
 #
+def example_sequence_state(net:ModelState, dataset:Dataset, save=True):
+    batches, _ = dataset.create_batches(batch_size=1, sequence_length=10, shuffle=False)
 
-def feedback_hist(lstm:ModelState,
-                  lstm_u:ModelState,
-                  rnn:ModelState,
-                  rnn_u:ModelState,
-                  tub:ModelState,
-                  tub_u:ModelState,
-                  dataset:Dataset,
-                  save=True):
-    data, labels = dataset.create_batches(-1, 1, shuffle=True)
-    x = data.squeeze()
-
-    h_lstm, _ = lstm.model(x)
-    h_lstmu, _ = lstm_u.model(x)
-    h_rnn, _ = rnn.model(x)
-    h_rnnu, _ = rnn_u.model(x)
-
-    p_lstm = lstm.predict(h_lstm).mean(dim=0).detach()
-    p_lstmu = lstm_u.predict(h_lstmu).mean(dim=0).detach()
-    p_rnn = rnn.predict(h_rnn).mean(dim=0).detach()
-    p_rnnu = rnn_u.predict(h_rnnu).mean(dim=0).detach()
-
-
-    fig, axes = plt.subplots(2,2, figsize=(10,10), sharey='row', sharex='row')
-
-    axes[0][0].hist(p_lstmu, bins=8);
-    axes[0][1].hist(p_lstm, bins=30, color='#3388BB');
-    axes[0][0].set_ylabel("Frequency")
-
-    axes[1][0].hist(p_rnnu, bins=25);
-    axes[1][1].hist(p_rnn, bins=25, color='#3388BB');
-    axes[1][0].set_ylabel("Frequency")
-
-    for ax in axes.flat:
-        ax.grid()
-        ax.set_xlabel(r"p")
-    for ax in axes:
-        ax[0].set_title(r"before training",fontsize=15)
-        ax[1].set_title(r"after training",fontsize=15)
-
-    fig.text(0.5, 1.0, r"(a) LSTM", ha='center', fontsize=15);
-    fig.text(0.5, 0.5, r"(b) SRN", ha='center', fontsize=15);
-
-    fig.tight_layout()
-
-    if save is True:
-        save_fig(fig, "feedback-hist", bbox_inches='tight')
-
-#
-# Section 4.3
-#
-
-def example_sequence_state(ms:ModelState, dataset:Dataset, save=True):
-    batches, _ = dataset.create_batches(batch_size=1, sequence_length=9, shuffle=False)
-
-    seq = batches[1,:,:,:]
+    seq = batches[0,:,:,:]
 
     X = []; P = []; H = []
 
-    h = ms.model.init_state(seq.shape[1])
+    h = net.model.init_state(seq.shape[1])
+ 
     for x in seq:
 
-        p = ms.predict(h)
-        h, [a,b,c] = ms.model(x, state=h) # EDITED: old: h, [a,b] new: [a,b,c]
+        p = net.predict(h)
+        h, [a,b,c] = net.model(x, state=h) # EDITED: old: h, [a,b] new: [a,b,c]
 
         X.append(x.mean(dim=0).detach().cpu())
         P.append(p.mean(dim=0).detach().cpu())
         H.append(h.mean(dim=0).detach().cpu())
 
 
-    fig, axes = display(X+P+H, shape=(9,3), figsize=(3,3), axes_visible=False, layout='tight')
-
-    fig.text(0.5, -0.03, r"time (t) $\longrightarrow$", ha='center', fontsize=30);
-    axes[0][0].set_ylabel(r"$\mathbf{x}_t$", ha='center', fontsize=30, rotation=0, labelpad=30)
-    axes[1][0].set_ylabel(r"$\mathbf{p}_t$", ha='center', fontsize=30, rotation=0, labelpad=30)
-    axes[2][0].set_ylabel(r"$\mathbf{h}_t$", ha='center', fontsize=30, rotation=0, labelpad=30)
-
+    fig = plt.figure(figsize=(3,3))
+   
+    fig, axes = display(X+P,  shape=(10,2), figsize=(3,3), axes_visible=False, layout='tight')
+  
+    
     if save is True:
-        save_fig(fig, ms.title+"/example_sequence_state", bbox_inches='tight')
+        save_fig(fig, "example_sequence_state", bbox_inches='tight')
+        
+def plot_colorbars(im1, im2, save=True):
+    """
+    Workaround for color bars figures since current display function
+    does not properly display multiple color bars
 
-def _run_seq_from_digit(digit, steps, ms:ModelState, dataset:Dataset, mask=None):
+    Parameters
+    ----------
+    im1 : Input drive image.
+    im2 : Internal drive image .
+
+    Returns
+    -------
+    None.
+
+    """
+    fig, (ax1, ax2) = plt.subplots(2,1)
+    cmap1 = truncate_colormap('seismic',0.5, 1)
+    cmap2 = truncate_colormap('seismic',-1, 0.8705)
+    mi,ma = im2.min(), im2.max()
+
+    im1 = ax1.imshow(im1,cmap=cmap1)
+    im2 =  ax2.imshow(im2,cmap=cmap2, vmin=mi, vmax=ma)
+    bbox_ax_top = ax1.get_position()
+    bbox_ax_bottom = ax2.get_position()
+    cbar_ax1, cbar_ax2 = fig.add_axes([bbox_ax_top.x1 + 0.1 , bbox_ax_top.y1, 0.02, bbox_ax_top.y1 - bbox_ax_top.y0]),\
+    fig.add_axes([bbox_ax_bottom.x1 + 0.1, bbox_ax_bottom.y1, 0.02,  bbox_ax_bottom.y1 - bbox_ax_bottom.y0])
+    fig.colorbar(im2,cax=cbar_ax2, cmap=cmap2, ticks=[-1, -0.75, -0.5, -0.25, 0, 0.25])
+    fig.colorbar(im1, cax=cbar_ax1, cmap=cmap1)
+    
+    if save is True:
+        save_fig(fig, "drive", bbox_inches='tight')
+
+    
+
+
+def _run_seq_from_digit(digit, steps, net:ModelState, dataset:Dataset, mask=None):
     """Create sequences with the same starting digit through a model and return the hidden state
 
     Parameters:
         - digit: the last digit in the sequence
         - steps: sequence length, or steps before the sequence gets to the 'digit'
-        - ms: model
+        - net: model
         - dataset: dataset to use
         - mask: mask can be used to turn off (i.e. lesion) certain units
     """
@@ -543,95 +551,99 @@ def _run_seq_from_digit(digit, steps, ms:ModelState, dataset:Dataset, mask=None)
     b, _ = dataset.create_batches(batch_size=-1, sequence_length=steps, shuffle=True, fixed_starting_point=fixed_starting_point)
     batch = b.squeeze(0)
 
-    h = ms.model.init_state(1)
+    h = net.model.init_state(1)
     for i in range(steps):
-        h, l_a = ms.model(batch[i], state=h)
+        h, l_a = net.model(batch[i], state=h)
         if mask is not None:
             h = h * mask
 
     return h.detach()
 
-def difference_h_t2_vs_t9(ms:ModelState, dataset:Dataset, mask=None, save=True):
-    h2s = []; h9s = []; difs = [];
-    for i in range(10):
-        h2 = _run_seq_from_digit((i+1)%10, 2, ms, dataset, mask=mask).cpu().median(dim=0).values
-        h9 = _run_seq_from_digit((i+1)%10, 9, ms, dataset, mask=mask).cpu().median(dim=0).values
-        h2s.append(h2)
-        h9s.append(h9)
-        difs.append(h9-h2)
-    fig, axes = display(h2s + h9s + difs, shape=(10,3), colorbar=False, axes_visible=False);
 
-    axes[0][0].set_ylabel(r"$\mathbf{h}_{t=2}$", ha='center', fontsize=40, rotation=0, labelpad=45)
-    axes[1][0].set_ylabel(r"$\mathbf{h}_{t=9}$", ha='center', fontsize=40, rotation=0, labelpad=45)
-    axes[2][0].set_ylabel("diff.", ha='center', fontsize=35, rotation=0, labelpad=45)
 
-    for i in range(10):
-        axes[2][i].set_xlabel(str(i), ha='center', fontsize=40, rotation=0, labelpad=5)
-
-    fig.tight_layout()
-
-    if save:
-        save_fig(fig,
-                      ms.title+"/difference-h-t2-vs-t9" + ("-lesioned" if mask is not None else ""),
-                      bbox_inches='tight')
-
-def _calc_xdrive_pdrive(ms:ModelState, dataset:Dataset):
+def _calc_xdrive_pdrive(net:ModelState, dataset:Dataset):
     """Calculates the excitatory presynaptic activity from input (xdrive) and recurrent connections (pdrive)
     """
-    steps = 9
+    steps = 10
     b, _ = dataset.create_batches(batch_size=-1, sequence_length=steps, shuffle=False)
     batch = b.squeeze(0)
 
-    h = ms.model.init_state(1)
+    h = net.model.init_state(1)
     for i in range(steps):
         x = batch[i]
-        p = ms.predict(h)
-        h, l_a = ms.model(x, state=h)
+        p = net.predict(h)
+        h, l_a = net.model(x, state=h)
 
     pdrive = F.relu(p).mean(dim=0).detach()
     xdrive = F.relu(x).mean(dim=0).detach()
   
     return xdrive, pdrive
 
-def _pred_mask(ms:ModelState, dataset:Dataset):
-    """Creates a mask that can be used to turn off the prediction units in a bathtub model,
+def _pred_mask(net:ModelState, dataset:Dataset):
+    """Creates a mask that can be used to turn off the prediction units in network,
     based on whether there is higher excitatory presynaptic activity from recurrent units as opposed to input units
     """
-    xdrive, pdrive = _calc_xdrive_pdrive(ms, dataset)
+    xdrive, pdrive = _calc_xdrive_pdrive(net, dataset)
     xpdrive = (xdrive-pdrive)
     pred_mask = torch.ones(28*28)
     pred_mask[xpdrive<0] = 0
 
     return pred_mask
 
-def xdrive_pdrive(ms:ModelState, dataset:Dataset, save=True):
-    xdrive, pdrive = _calc_xdrive_pdrive(ms, dataset)
+def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
+    '''
+    https://stackoverflow.com/a/18926541
+    '''
+    if isinstance(cmap, str):
+        cmap = plt.get_cmap(cmap)
+    new_cmap = mpl.colors.LinearSegmentedColormap.from_list(
+        'trunc({n},{a:.2f},{b:.2f})'.format(n=cmap.name, a=minval, b=maxval),
+        cmap(np.linspace(minval, maxval, n)))
+    return new_cmap
+
+
+def xdrive_pdrive(net:ModelState, dataset:Dataset, save=True):
+    """
+    determines whether a unit is driven by the input or reciprocal activity
+    """
+    xdrive, pdrive = _calc_xdrive_pdrive(net, dataset)
 
     fig = plt.figure(figsize=(12,6))
     gs = fig.add_gridspec(2, 3)
-
-    ax = fig.add_subplot(gs[0,0])
-    display(pdrive,lims=None,colorbar=True,figax=(fig,ax));
-    ax.set_xlabel(r"$\langle \mathbf{p}^+ \rangle$",fontsize=15)
-    ax.set_title("(a)", fontsize=18)
-    ax = fig.add_subplot(gs[1,0])
-    display(xdrive,lims=None,colorbar=True,figax=(fig,ax));
-    ax.set_xlabel(r"$\langle \mathbf{x}^+ \rangle$",fontsize=15)
-    ax.set_title("(b)", fontsize=18)
-
-    ax = fig.add_subplot(gs[:,1:])
+    cmap_base = 'seismic'
+    vmin, vmax = 0.5, 1
+    cmap = truncate_colormap(cmap_base, vmin, vmax)
+    
+    ax = fig.add_subplot(gs[:,0:-1])
     scatter(xdrive,pdrive,figax=(fig,ax))
-    ax.set_xlabel(r"$\langle \mathbf{x}^+ \rangle$",fontsize=15)
-    ax.set_ylabel(r"$\langle \mathbf{p}^+ \rangle$",fontsize=15);
-    ax.set_title("(c)", fontsize=18)
+   
+    
+    ax.grid(True)
+ 
+    ax = fig.add_subplot(gs[0,2])
+    
+   
+    display(pdrive,lims=(0, pdrive.max()),cmap = cmap,colorbar=True,figax=(fig,ax));
+  
+    ax.set_xticks([])
+    ax.set_yticks([])
+  
+    ax = fig.add_subplot(gs[1,2])
+   
 
-    fig.tight_layout()
+    display(xdrive,lims=(0, xdrive.max()),cmap=  cmap,colorbar=True,figax=(fig,ax));
+
+    ax.set_xticks([])
+    ax.set_yticks([])
+   
 
     if save is True:
-        save_fig(fig, ms.title+"/xdrive_pdrive", bbox_inches='tight')
+        save_fig(fig, net.title+"/xdrive_pdrive", bbox_inches='tight')
+        
 
-def prediction_units(ms:ModelState, dataset:Dataset, save=True):
-    xdrive, pdrive = _calc_xdrive_pdrive(ms, dataset)
+
+def prediction_units(net:ModelState, dataset:Dataset, save=True):
+    xdrive, pdrive = _calc_xdrive_pdrive(net, dataset)
     xpdrive = (xdrive-pdrive)
 
     predunits = torch.ones(28*28)*-1
@@ -639,18 +651,20 @@ def prediction_units(ms:ModelState, dataset:Dataset, save=True):
     fig, axes = display(predunits,axes_visible=False,cmap='binary');
 
     if save is True:
-        save_fig(fig, ms.title+"/prediction-units")
+        save_fig(fig, net.title+"/prediction-units")
 
-def model_activity_lesioned(ms:ModelState, training_set:Dataset, test_set:Dataset, seq_length=9, seed=2553, save=True):
-    mask = _pred_mask(ms, test_set)
-
-    # Use a seed for reproducability
-    if seed is None:
-        seed = np.random.randint(1e4)
-        print(seed)
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-
+def model_activity_lesioned(net:ModelState, training_set:Dataset, test_set:Dataset, seq_length=10, seed=2553, save=True):
+    """
+    calculates model preactivation  and preactivation bounds 
+    for lesioned models 
+    """
+    # create mask that knocks out predictive units
+    mask = _pred_mask(net, test_set)
+   
+    if seed is not None:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+    
     # category medians and median for all images
     meds = mnist.medians(training_set)
     global_median = training_set.x.median(dim=0).values
@@ -662,17 +676,17 @@ def model_activity_lesioned(ms:ModelState, training_set:Dataset, test_set:Datase
         batch_size = data.shape[1]
 
         # result lists
-        mu_notn = []; sig_notn = []
-        mu_meds = []; sig_meds = []
-        mu_gmed = []; sig_gmed = []
-        mu_tub = []; sig_tub = []
-        mu_tubles = []; sig_tubles = []
+        mu_notn = []; 
+        mu_meds = [];
+        mu_gmed = []; 
+        mu_net = []; 
+        mu_netles = []; 
 
-        p_values = []
 
-        h_tub = ms.model.init_state(batch_size)
-        h_tubles = ms.model.init_state(batch_size)
-
+        h_net = net.model.init_state(batch_size)
+        h_netles = net.model.init_state(batch_size)
+        
+       
         for i in range(data.shape[0]):
             x = data[i]
             y = labels[i]
@@ -688,124 +702,78 @@ def model_activity_lesioned(ms:ModelState, training_set:Dataset, test_set:Datase
             # calculate hidden state
             h_meds = (x - median)
             h_gmed = (x - gmedian)
-            h_tub, l_tub = ms.model(x, state=h_tub)
-            h_tubles = h_tubles * mask # perform lesion
-            h_tubles, l_tubles = ms.model(x, state=h_tubles)
+            h_net, l_net = net.model(x, state=h_net)
+            h_netles = h_netles * mask # perform lesion
+            h_netles, l_netles = net.model(x, state=h_netles)
 
             # calculate L1 loss for each unit, assuming equal amounts of units in each model
-            m_notn = x.abs().sum(dim=1)/ms.model.hidden_size
-            m_meds = h_meds.abs().sum(dim=1)/ms.model.hidden_size
-            m_gmed = h_gmed.abs().sum(dim=1)/ms.model.hidden_size
-            m_tub = torch.cat([a for a in [l_tub[1]]], dim=1).abs().mean(dim=1) # EDITED: old expr: 'torch.cat([a for a in l_tub], dim=1).abs().mean(dim=1)'
-            m_tubles = torch.cat([a for a in [l_tubles[1]]], dim=1).abs().mean(dim=1) # EDITED: old expr: 'm_tubles = torch.cat([a for a in l_tubles], dim=1).abs().mean(dim=1)'
+            m_notn = x.abs().sum(dim=1)/net.model.hidden_size
+            m_meds = h_meds.abs().sum(dim=1)/net.model.hidden_size
+            m_gmed = h_gmed.abs().sum(dim=1)/net.model.hidden_size
+            m_net = torch.cat([a for a in [l_net[1]]], dim=1).abs().mean(dim=1) # EDITED: old expr: 'torch.cat([a for a in l_tub], dim=1).abs().mean(dim=1)
+            m_netles = torch.cat([a for a in [l_netles[1]]], dim=1).abs().mean(dim=1)
+      
 
             # Calculate the mean
             mu_notn.append(m_notn.mean().cpu().item())
             mu_meds.append(m_meds.mean().cpu().item())
             mu_gmed.append(m_gmed.mean().cpu().item())
-            mu_tub.append(m_tub.mean().cpu().item())
-            mu_tubles.append(m_tubles.mean().cpu().item())
+            mu_net.append(m_net.mean())
+            mu_netles.append(m_netles.mean())
 
-            # Calculate the standard error of the mean
-            sig_notn.append(m_notn.std().cpu().item()/np.sqrt(batch_size))
-            sig_meds.append(m_meds.std().cpu().item()/np.sqrt(batch_size))
-            sig_gmed.append(m_gmed.std().cpu().item()/np.sqrt(batch_size))
-            sig_tub.append(m_tub.std().cpu().item()/np.sqrt(batch_size))
-            sig_tubles.append(m_tubles.std().cpu().item()/np.sqrt(batch_size))
-
-            # Perform welch's t-test on relevant adjacent pairs
-            p_values.append([
-                _t_test(m_gmed, m_tubles),
-                _t_test(m_tubles, m_tub),
-                _t_test(m_tub, m_meds)
-            ])
-
-        fig, axes = plt.subplots(1, figsize=(14,10))
-
-        x = np.arange(1,data.shape[0]+1)
-
-        axes.errorbar(x, mu_notn, yerr=sig_notn, capsize=4, label="input")
-        axes.errorbar(x, mu_meds, yerr=sig_meds, capsize=4, label="cat. median")
-        axes.errorbar(x, mu_gmed, yerr=sig_gmed, capsize=4, label="median")
-        axes.errorbar(x, mu_tub, yerr=sig_tub, capsize=4, label="Bathtub")
-        axes.errorbar(x, mu_tubles, yerr=sig_tubles, capsize=4, label="lesioned")
-
-        # Plot asterisks for statistical significance between adjacent pairs of means
-        def sig_asterix(m1, m2, p):
-            y = (m1 - m2) / 2 + m2
-            if p < 0.001:
-                axes.text(i+1, y-0.0005, r'***', fontsize=16)
-            elif p < 0.01:
-                axes.text(i+1, y-0.0005, r'**', fontsize=16)
-            elif p < 0.05:
-                axes.text(i+1, y-0.0005, r'*', fontsize=16)
-            else:
-                axes.text(i+1, y-0.0005, r'$-$', fontsize=16)
-        for i in range(1,9):
-            sig_asterix(mu_gmed[i], mu_tubles[i], p_values[i][0])
-            sig_asterix(mu_tubles[i], mu_tub[i], p_values[i][1])
-            sig_asterix(mu_tub[i], mu_meds[i], p_values[i][2])
-
-        axes.xaxis.set_major_locator(MaxNLocator(integer=True));
-        axes.set_xlabel(r"time $\longrightarrow$",fontsize=16)
-        axes.set_ylabel("Mean absolute activity",fontsize=16)
-        axes.legend(fontsize=16, loc='upper right', bbox_to_anchor=(1.0, 0.53))
-        axes.grid()
-        fig.tight_layout()
-
-        if save is True:
-            save_fig(fig, ms.title+"/activity-vs-lesioned", bbox_inches='tight')
+         
+           
+    return data, np.array(mu_notn), np.array(mu_meds), np.array(mu_gmed), np.array(mu_net), np.array(mu_netles)
 
 #
 # Appendix
 #
 
-def weights_mean_activity(ms:ModelState, dataset:Dataset, save=True):
+def weights_mean_activity(net:ModelState, dataset:Dataset, save=True):
     def Whmean(steps):
         # calculates mean network activity after certain amount of timesteps
         # and times this by the weight matrix to get the mean presynaptic activity of the recurrent connections
         b, _ = dataset.create_batches(batch_size=-1, sequence_length=steps, shuffle=True)
         batch = b.squeeze(0)
 
-        h = ms.model.init_state(1)
+        h = net.model.init_state(1)
         for i in range(steps):
-            h, l_a = ms.model(batch[i], state=h)
+            h, l_a = net.model(batch[i], state=h)
 
-        return (h.mean(dim=0) * ms.model.W.t()).t().detach().cpu()
+        return (h.mean(dim=0) * net.model.W.t()).t().detach().cpu()
 
     # Weights times mean activity at timestep 2
     fig, axes = unit_projection(Whmean(2), colorbar=False, axes_visible=False);
     if save is True:
-        save_fig(fig, ms.title+"/weights_mean_activity_t2", bbox_inches='tight')
+        save_fig(fig, net.title+"/weights_mean_activity_t2", bbox_inches='tight')
 
     # Weights times mean activity at timestep 9
     fig,axes = unit_projection(Whmean(9), colorbar=False, axes_visible=False);
     if save is True:
-        save_fig(fig, ms.title+"/weights_mean_activity_t9", bbox_inches='tight')
+        save_fig(fig, net.title+"/weights_mean_activity_t9", bbox_inches='tight')
 
 
-def pred_after_timestep(ms:ModelState, dataset:Dataset, mask=None, save=True):
-    imgs=[]
+def pred_after_timestep(net:ModelState, dataset:Dataset, mask=None, save=True):
+    imgs= []
+
     for d in range(10):
-        imgs = imgs + [ms.predict(_run_seq_from_digit(d, i, ms, dataset, mask=mask)).mean(dim=0) for i in range(1,9)]
+        imgs = imgs + [net.predict(torch.zeros(1,784))] + [net.predict(_run_seq_from_digit(d, i, net, dataset, mask=mask)).mean(dim=0) for i in range(1,10)]
 
-    fig, axes = display(imgs, shape=(8,10), axes_visible=False)
+    fig, axes = display(imgs, shape=(10,10), axes_visible=False)
 
     for i in range(10):
-        axes[i][0].set_ylabel(str(i)+":", ha='center', fontsize=30, rotation=0, labelpad=30)
-    for i in range(8):
-        axes[9][i].set_xlabel(str(i+2), ha='center', fontsize=30, rotation=0, labelpad=30)
-    fig.text(0.5, -0.015, r"timestep (t)", ha='center', fontsize=30);
+        axes[i][0].set_ylabel(str(i)+":", ha='center', fontsize=60, rotation=0, labelpad=30)
+   
 
     fig.tight_layout()
 
     if save:
         save_fig(fig,
-                      ms.title+"/pred-after-timestep" + ("-lesioned" if mask is not None else ""),
+                      net.title+"/pred-after-timestep" + ("-lesioned" if mask is not None else ""),
                       bbox_inches='tight')
         
 #
-# New experiments
+# DEPRECATED EXPERIMENTS
 #
 def beta_loss(betas, 
               train_loss, 
@@ -831,7 +799,7 @@ def mean_activity(betas,
                   models,
                   training_set:Dataset,
                   test_set:Dataset,
-                  seq_length=9,
+                  seq_length=10,
                   title='a',
                   activity='pre',
                   seed=2732,
@@ -965,7 +933,7 @@ def final_mea(betas,
                   models,
                   training_set:Dataset,
                   test_set:Dataset,
-                  seq_length=9,
+                  seq_length=10,
                   title='a', 
                   activity='pre',
                   seed=2732,
@@ -1083,7 +1051,7 @@ def mean_synaptrans(betas,
                   models,
                   training_set:Dataset,
                   test_set:Dataset,
-                  seq_length=9,
+                  seq_length=10,
                   title='a', 
                   seed=2732,
                   save=True):
@@ -1185,7 +1153,7 @@ def final_synaptrans(betas,
                   models,
                   training_set:Dataset,
                   test_set:Dataset,
-                  seq_length=9,
+                  seq_length=10,
                   title='a', 
                   seed=2732,
                   scale='linear',
