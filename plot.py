@@ -344,6 +344,10 @@ def display_model_activity(data,
                            net_les_samples,
                            lesioned = False,
                            save=True): 
+    """
+    visualises preactivation of models and preactivations derived from
+    theoretical bounds including confidence intervals
+    """
     
     bs_notn, bs_meds, bs_gmed, bs_net, bs_netles = bootstraps   
     # create figure plot mean values and 95% CI
@@ -476,22 +480,24 @@ def model_activity(net:ModelState,
 # Figure 3 
 #
 def example_sequence_state(net:ModelState, dataset:Dataset, save=True):
+    """
+    visualises input and internal drive for a sample sequence
+    """
     batches, _ = dataset.create_batches(batch_size=1, sequence_length=10, shuffle=False)
 
     seq = batches[0,:,:,:]
 
-    X = []; P = []; H = []
+    X = []; P = []
 
     h = net.model.init_state(seq.shape[1])
  
     for x in seq:
 
         p = net.predict(h)
-        h, l_a = net.model(x, state=h) # EDITED: old: h, [a,b] new: [a,b,c]
+        h, l_a = net.model(x, state=h)
 
         X.append(x.mean(dim=0).detach().cpu())
         P.append(p.mean(dim=0).detach().cpu())
-        H.append(h.mean(dim=0).detach().cpu())
 
 
     fig = plt.figure(figsize=(3,3))
@@ -507,15 +513,10 @@ def plot_colorbars(im1, im2, save=True):
     Workaround for color bars figures since current display function
     does not properly display multiple color bars
 
-    Parameters
-    ----------
     im1 : Input drive image.
     im2 : Internal drive image .
 
-    Returns
-    -------
-    None.
-
+ 
     """
     fig, (ax1, ax2) = plt.subplots(2,1)
     cmap1 = truncate_colormap('seismic',0.5, 1)
@@ -562,7 +563,8 @@ def _run_seq_from_digit(digit, steps, net:ModelState, dataset:Dataset, mask=None
 
 
 def _calc_xdrive_pdrive(net:ModelState, dataset:Dataset):
-    """Calculates the excitatory presynaptic activity from input (xdrive) and recurrent connections (pdrive)
+    """
+    Calculates the excitatory presynaptic activity from input (xdrive) and recurrent connections (pdrive)
     """
     steps = 10
     b, _ = dataset.create_batches(batch_size=-1, sequence_length=steps, shuffle=False)
@@ -591,9 +593,9 @@ def _pred_mask(net:ModelState, dataset:Dataset):
     return pred_mask
 
 def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
-    '''
-    https://stackoverflow.com/a/18926541
-    '''
+    """
+    Adapted from https://stackoverflow.com/a/18926541
+    """
     if isinstance(cmap, str):
         cmap = plt.get_cmap(cmap)
     new_cmap = mpl.colors.LinearSegmentedColormap.from_list(
@@ -643,6 +645,10 @@ def xdrive_pdrive(net:ModelState, dataset:Dataset, save=True):
 
 
 def prediction_units(net:ModelState, dataset:Dataset, save=True):
+    """
+    Determines predictions units in the network in the following way:
+        input drive - internal drive < 0 -> prediction unit
+    """
     xdrive, pdrive = _calc_xdrive_pdrive(net, dataset)
     xpdrive = (xdrive-pdrive)
 
@@ -732,6 +738,9 @@ def model_activity_lesioned(net:ModelState, training_set:Dataset, test_set:Datas
 
 
 def pred_after_timestep(net:ModelState, dataset:Dataset, mask=None, save=True):
+    """
+    visualises internal drive after 0-9 preceding frames.
+    """
     imgs= []
 
     for d in range(10):

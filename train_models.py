@@ -27,7 +27,7 @@ from train import train
 training_set, validation_set, test_set = mnist.load(val_ratio=0.0)
 
 """
-Create and train ten instances of the network
+Create and train ten instances of energy efficient RNNs
 """
 N = 10 # number of model instances
 

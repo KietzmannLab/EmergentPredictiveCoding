@@ -5,6 +5,11 @@ from ModelState import ModelState
 from functions import *
 
 class Network(torch.nn.Module):
+    """
+    Recurrent Neural Network class containing parameters of the network
+    and computes the forward pass.
+    Returns hidden state of the network and preactivations of the units. 
+    """
     def __init__(self, input_size: int, hidden_size: int, activation_func, weights_init=init_params):
         super(Network, self).__init__()
 
