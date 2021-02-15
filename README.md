@@ -19,7 +19,7 @@ Supplementary material for 'Predictive coding is a consequence of energy efficie
 The script will automatically run on a gpu if a gpu is available and cuda is set up. Otherwise the script will run on the cpu.
 
 ### Data set
-We use the MNIST database of handwritten digits. We created a wrapper 'mnist.py' that loads and transforms the mnist digits into sequences of digits in ascending order (with wraparound at 9 and 0). The sequenced data set is used as data for the networks. The appropriate training and test data can be created by simply calling: 
+We use the MNIST database of handwritten digits. We created a wrapper 'mnist.py' that loads and transforms the mnist digits into sequences of digits in ascending order (with wraparound from 9 to 0). The sequenced data set is used as data for the networks. The appropriate training and test data can be created by simply calling: 
 
 ```import mnist```
 

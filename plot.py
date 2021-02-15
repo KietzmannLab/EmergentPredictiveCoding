@@ -729,28 +729,6 @@ def model_activity_lesioned(net:ModelState, training_set:Dataset, test_set:Datas
 # Appendix
 #
 
-def weights_mean_activity(net:ModelState, dataset:Dataset, save=True):
-    def Whmean(steps):
-        # calculates mean network activity after certain amount of timesteps
-        # and times this by the weight matrix to get the mean presynaptic activity of the recurrent connections
-        b, _ = dataset.create_batches(batch_size=-1, sequence_length=steps, shuffle=True)
-        batch = b.squeeze(0)
-
-        h = net.model.init_state(1)
-        for i in range(steps):
-            h, l_a = net.model(batch[i], state=h)
-
-        return (h.mean(dim=0) * net.model.W.t()).t().detach().cpu()
-
-    # Weights times mean activity at timestep 2
-    fig, axes = unit_projection(Whmean(2), colorbar=False, axes_visible=False);
-    if save is True:
-        save_fig(fig, net.title+"/weights_mean_activity_t2", bbox_inches='tight')
-
-    # Weights times mean activity at timestep 9
-    fig,axes = unit_projection(Whmean(9), colorbar=False, axes_visible=False);
-    if save is True:
-        save_fig(fig, net.title+"/weights_mean_activity_t9", bbox_inches='tight')
 
 
 def pred_after_timestep(net:ModelState, dataset:Dataset, mask=None, save=True):

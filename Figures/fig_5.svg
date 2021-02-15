@@ -2712,9 +2712,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.70710678"
-     inkscape:cx="345.54379"
-     inkscape:cy="368.55087"
+     inkscape:zoom="1"
+     inkscape:cx="392.35455"
+     inkscape:cy="224.6504"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      inkscape:document-rotation="0"
@@ -2722,7 +2722,7 @@
      showguides="true"
      inkscape:guide-bbox="true"
      inkscape:window-width="1440"
-     inkscape:window-height="808"
+     inkscape:window-height="801"
      inkscape:window-x="0"
      inkscape:window-y="23"
      inkscape:window-maximized="0"
@@ -2941,26 +2941,26 @@
     </g>
     <text
        xml:space="preserve"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.175px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:sans-serif;stroke-width:0.264583"
-       x="13.5183"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:sans-serif;stroke-width:0.264583"
+       x="8.6719179"
        y="64.342491"
        id="text63583"><tspan
          sodipodi:role="line"
          id="tspan63581"
-         x="13.5183"
+         x="8.6719179"
          y="64.342491"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.175px;font-family:sans-serif;-inkscape-font-specification:sans-serif;stroke-width:0.264583">t=1 </tspan></text>
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;font-family:sans-serif;-inkscape-font-specification:sans-serif;stroke-width:0.264583">prec. fr.=0 </tspan></text>
     <text
        xml:space="preserve"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.175px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:sans-serif;stroke-width:0.264583"
-       x="32.516846"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:sans-serif;stroke-width:0.264583"
+       x="27.772196"
        y="64.362648"
        id="text63587"><tspan
          sodipodi:role="line"
          id="tspan63585"
-         x="32.516846"
+         x="27.772196"
          y="64.362648"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.175px;font-family:sans-serif;-inkscape-font-specification:sans-serif;stroke-width:0.264583">t=2</tspan></text>
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;font-family:sans-serif;-inkscape-font-specification:sans-serif;stroke-width:0.264583">prec. fr.=1</tspan></text>
     <text
        xml:space="preserve"
        style="font-weight:bold;font-size:4.93891px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold';stroke-width:0.264583"
@@ -5070,7 +5070,7 @@
          id="tspan63228"
          x="7.2680783"
          y="10.180286"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.52778px;font-family:sans-serif;-inkscape-font-specification:sans-serif;stroke-width:0.264583">Original</tspan></text>
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.52778px;font-family:sans-serif;-inkscape-font-specification:sans-serif;stroke-width:0.264583">Original internal drive</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:0.352778px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:sans-serif;stroke-width:0.264583"
@@ -5097,26 +5097,26 @@
          id="tspan63238"
          x="7.2680783"
          y="40.680286"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.52778px;font-family:sans-serif;-inkscape-font-specification:sans-serif;stroke-width:0.264583">Prediction units lesioned</tspan></text>
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.52778px;font-family:sans-serif;-inkscape-font-specification:sans-serif;stroke-width:0.264583">Internal drive with lesioned prediction units</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;stroke-width:0.228154;stroke-linecap:butt;stroke-linejoin:round"
-       x="99.173859"
+       x="99.173851"
        y="70.261772"
        id="text12861-3"
        transform="scale(1.0397152,0.96180184)"><tspan
          sodipodi:role="line"
          id="tspan12859-9"
-         x="99.173859"
+         x="99.173851"
          y="70.261772"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.52778px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;stroke-width:0.228154">Temporal horizon</tspan><tspan
          sodipodi:role="line"
-         x="99.173859"
+         x="99.173851"
          y="75.553436"
          id="tspan12863-4"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;fill:#808080;stroke-width:0.228154"><tspan
    style="font-size:3.52778px;text-align:center;text-anchor:middle"
-   id="tspan63567">[Network time steps</tspan>]</tspan></text>
+   id="tspan63567">[Nr. preceding frames</tspan>]</tspan></text>
     <text
        xml:space="preserve"
        id="text63575"
@@ -5134,15 +5134,15 @@
          style="stroke-width:0.264583">...</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:3.175px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:sans-serif;stroke-width:0.264583"
-       x="182.67957"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:sans-serif;stroke-width:0.264583"
+       x="178.83478"
        y="64.354897"
        id="text63599"><tspan
          sodipodi:role="line"
          id="tspan63597"
-         x="182.67957"
+         x="178.83478"
          y="64.354897"
-         style="stroke-width:0.264583">t=10</tspan></text>
+         style="font-size:2.82222px;stroke-width:0.264583">prec. fr.=9</tspan></text>
     <g
        style="stroke-linecap:butt;stroke-linejoin:round"
        id="g3482"
