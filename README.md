@@ -11,7 +11,7 @@ Supplementary material for 'Predictive coding is a consequence of energy efficie
 
 ### Usage Notes:
 - To replicate the results in the paper, please see [paper_results.ipynb](https://github.com/KietzmannLab/EmergentPredictiveCoding/blob/master/paper_results%20.ipynb)  
-- To produce the 10 model instances used in determining the model preactivations, please run train_models.py:
+- The repository already contains trained models, but if you want to train your own models you can run train_models.py to produce the 10 model instances used in determining the model preactivations:
 
 ```python train_models.py```
 
@@ -43,7 +43,6 @@ Ali, A., Ahmad N., de Groot E., van Gerven M.A.J., Kietzmann T.C. (2021). **Pred
 ### References
 Ali, A., Ahmad N., de Groot E., van Gerven M.A.J., Kietzmann T.C. (2021). **Predictive coding is a consequence of energy efficiency in recurrent neural networks.** 
 
-### more details will follow soon
 
 
 

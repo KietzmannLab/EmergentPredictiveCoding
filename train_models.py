@@ -26,18 +26,20 @@ from train import train
 
 training_set, validation_set, test_set = mnist.load(val_ratio=0.0)
 
-
+"""
+Create and train ten instances of the network
+"""
 N = 10 # number of model instances
 
 
-for i in range(1, N + 1):
+for i in range(N):
     
         net= Network.State(activation_func=torch.nn.ReLU(),
             optimizer=torch.optim.Adam,
             lr=1e-4,
             input_size=INPUT_SIZE,
             hidden_size=INPUT_SIZE,
-            title="/networks/relu-l1-"+str(i),
+            title="/networks/preact_net",
             device=DEVICE)
     
    
