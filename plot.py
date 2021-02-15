@@ -456,7 +456,7 @@ def model_activity(net:ModelState,
                 
 
             h_net, l_net = net.model(x, state=h_net) 
-            m_net = torch.cat([a for a in [l_net[1]]], dim=1).abs().mean(dim=1).mean()
+            m_net = torch.cat([a for a in l_net], dim=1).abs().mean(dim=1).mean()
         
                 
             # Calculate the mean
@@ -487,7 +487,7 @@ def example_sequence_state(net:ModelState, dataset:Dataset, save=True):
     for x in seq:
 
         p = net.predict(h)
-        h, [a,b,c] = net.model(x, state=h) # EDITED: old: h, [a,b] new: [a,b,c]
+        h, l_a = net.model(x, state=h) # EDITED: old: h, [a,b] new: [a,b,c]
 
         X.append(x.mean(dim=0).detach().cpu())
         P.append(p.mean(dim=0).detach().cpu())
@@ -710,8 +710,8 @@ def model_activity_lesioned(net:ModelState, training_set:Dataset, test_set:Datas
             m_notn = x.abs().sum(dim=1)/net.model.hidden_size
             m_meds = h_meds.abs().sum(dim=1)/net.model.hidden_size
             m_gmed = h_gmed.abs().sum(dim=1)/net.model.hidden_size
-            m_net = torch.cat([a for a in [l_net[1]]], dim=1).abs().mean(dim=1) # EDITED: old expr: 'torch.cat([a for a in l_tub], dim=1).abs().mean(dim=1)
-            m_netles = torch.cat([a for a in [l_netles[1]]], dim=1).abs().mean(dim=1)
+            m_net = torch.cat([a for a in l_net], dim=1).abs().mean(dim=1) # EDITED: old expr: 'torch.cat([a for a in l_tub], dim=1).abs().mean(dim=1)
+            m_netles = torch.cat([a for a in l_netles], dim=1).abs().mean(dim=1)
       
 
             # Calculate the mean
