@@ -39,11 +39,9 @@ Where 'dataset denotes training_set, validation_set or test_set'.
 
 ### Usage Conditions
 If you use this code in your work, we ask you to please cite:
-Ali, A., Ahmad N., de Groot E., van Gerven M.A.J., Kietzmann T.C. (2021). **Predictive coding is a consequence of energy efficiency in recurrent neural networks.** 
+Ali, A., Ahmad N., de Groot E., van Gerven M.A.J., Kietzmann T.C. (2021). **Predictive coding is a consequence of energy efficiency in recurrent neural networks.** doi: https://doi.org/10.1101/2021.02.16.430904
 
 
-### References
-Ali, A., Ahmad N., de Groot E., van Gerven M.A.J., Kietzmann T.C. (2021). **Predictive coding is a consequence of energy efficiency in recurrent neural networks.** 
 
 
 
