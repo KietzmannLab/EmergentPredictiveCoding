@@ -10,7 +10,7 @@ Supplementary material for 'Predictive coding is a consequence of energy efficie
 3. Python  >= 3.7 
 
 ### Usage Notes:
-- To replicate the results in the paper, please see [paper_results.ipynb](https://github.com/KietzmannLab/EmergentPredictiveCoding/blob/master/paper_results%20.ipynb)  
+- To replicate the results in the paper, please see [paper_results.ipynb](https://github.com/KietzmannLab/EmergentPredictiveCoding/blob/master/paper_results.ipynb)  
 - The repository already contains trained models, but if you want to train your own models you can run train_models.py to produce the 10 model instances used in determining the model preactivations:
 
 ```python train_models.py```
