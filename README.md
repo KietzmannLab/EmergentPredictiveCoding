@@ -12,7 +12,7 @@ Supplementary material for 'Predictive coding is a consequence of energy efficie
 
 ### Usage Notes:
 - To replicate the results in the paper, please see [paper_results.ipynb](https://github.com/KietzmannLab/EmergentPredictiveCoding/blob/master/paper_results.ipynb)  
-- trained models can be find [here](https://osf.io/c57d4/) , but if you want to train your own models you can run train_models.py to produce the model instances used in determining the model preactivations:
+- trained models can be found [here](https://osf.io/c57d4/), but if you want to train your own models you can run train_models.py to produce the model instances used in determining the model preactivations:
 
 ```python train_models.py```
 
