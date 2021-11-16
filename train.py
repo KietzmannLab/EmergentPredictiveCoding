@@ -1,32 +1,53 @@
 import torch
-import numpy as np
 from typing import Callable
-from functions import *
+import functions
 from ModelState import ModelState
 from Dataset import Dataset
 
 def test_epoch(ms: ModelState,
                dataset: Dataset,
                loss_fn: Callable[[torch.FloatTensor, torch.FloatTensor], torch.FloatTensor],
+               batch_size: int,
                sequence_length: int):
-    data, labels = dataset.create_batches(batch_size=-1, sequence_length=sequence_length, shuffle=False)
-    batch_size = data.shape[2]
+    batches, labels = dataset.create_batches(batch_size=batch_size, sequence_length=sequence_length, shuffle=True)
+    num_batches = batches.shape[0]
+    batch_size = batches.shape[2]
+    tot_loss = 0
+    tot_res = None 
+    state = None
+    for i, batch in enumerate(batches):
 
-    with torch.no_grad():
-        loss, res = ms.run(data[0], loss_fn)
+        with torch.no_grad():
+            loss, res, state = test_batch(ms, batch, loss_fn, state)
+    
+        tot_loss += loss
 
-        print("Test loss:     {:.8f}".format(loss.item()))
+        if tot_res is None:
+            tot_res = res
+        else:
+            tot_res += res  
+    tot_loss /= num_batches
+    tot_res /= num_batches
+    print("Test loss:     {:.8f}".format(tot_loss))
+    return tot_loss, tot_res
 
-        return loss.item(), res
-
+def test_batch(ms: ModelState,
+               batch: torch.FloatTensor,
+               loss_fn: Callable[[torch.FloatTensor, torch.FloatTensor], torch.FloatTensor],
+               state) -> float:
+    loss, res, state = ms.run(batch, loss_fn, state)
+    return loss.item(), res, state
+    
 def train_batch(ms: ModelState,
                 batch: torch.FloatTensor,
-                loss_fn: Callable[[torch.FloatTensor, torch.FloatTensor], torch.FloatTensor]) -> float:
+                loss_fn: Callable[[torch.FloatTensor, torch.FloatTensor], torch.FloatTensor],
+                state) -> float:
 
-    loss, res = ms.run(batch, loss_fn)
+    loss, res, state = ms.run(batch, loss_fn, state)
+   
     ms.step(loss)
     ms.zero_grad()
-    return loss.item(), res
+    return loss.item(), res, state
 
 def train_epoch(ms: ModelState,
                 dataset: Dataset,
@@ -39,13 +60,13 @@ def train_epoch(ms: ModelState,
     num_batches = batches.shape[0]
     batch_size = batches.shape[2]
 
-    t = Timer()
+    t = functions.Timer()
     tot_loss = 0.
     tot_res = None
-
+    state = None 
     for i, batch in enumerate(batches):
 
-        loss, res = train_batch(ms, batch, loss_fn)
+        loss, res, state = train_batch(ms, batch, loss_fn, state)
         tot_loss += loss
 
         if tot_res is None:
@@ -78,6 +99,6 @@ def train(ms: ModelState,
 
         train_loss, train_res = train_epoch(ms, train_ds, loss_fn, batch_size, sequence_length, verbose=verbose)
 
-        test_loss, test_res = test_epoch(ms, test_ds, loss_fn, sequence_length)
+        test_loss, test_res = test_epoch(ms, test_ds, loss_fn, batch_size, sequence_length)
 
         ms.on_results(epoch, train_res, test_res)

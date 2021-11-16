@@ -1,13 +1,15 @@
 import torch
 import torchvision
+from torchvision import transforms
 from Dataset import Dataset
 
-class MNISTDataset(Dataset):
-    """Container class for the MNIST database containing Tensors with the images and labels, as well as a list of indices for each category
+class CIFAR10Dataset(Dataset):
+    """Container class for the CIFAR10 database containing Tensors with the images and labels, as well as a list of indices for each category
     """
     def __init__(self, x, y, indices, repeat=1):
         super(Dataset, self).__init__(x=x, y=y, indices=indices)
         self.repeat = repeat
+
 
     def create_batches(self, batch_size, sequence_length, shuffle=True, fixed_starting_point=None):
         data, labels = create_sequences(self, sequence_length, batch_size, shuffle, fixed_starting_point)
@@ -15,9 +17,10 @@ class MNISTDataset(Dataset):
         labels = labels.repeat_interleave(self.repeat, dim=1)
         return data, labels
 
+
 def create_sequences(dataset, sequence_length, batch_size, shuffle=True, fixed_starting_point=None):
     # number of datapoints
-    data_size = dataset.x.shape[0]
+    data_size, ninputs = dataset.x.shape
 
     # maximum theoretical amount of sequences
     max_sequences = int(data_size / sequence_length)
@@ -83,59 +86,83 @@ def create_sequences(dataset, sequence_length, batch_size, shuffle=True, fixed_s
     epoch_indices = epoch_indices[:cutoff]
     sequences = sequences[:cutoff]
     # select the data points and group per sequence and batch
-    x = dataset.x[epoch_indices].view(-1, batch_size, sequence_length, 28*28).transpose(1,2)
+    #x = dataset.x[epoch_indices].view(-1, batch_size, sequence_length, 32*32).transpose(1,2)
+    x = dataset.x[epoch_indices].view(-1, batch_size, sequence_length, ninputs).transpose(1,2)
     y = sequences.view(-1, batch_size, sequence_length).transpose(1,2)
     return x, y
 
 
-def load(val_ratio = 0.1):
-    """Load MNIST data, transform to tensors and calculate indices for each category
+def load(val_ratio = 0.1, color=False):
+    """Load CIFAR10 data, transform to tensors and grayscale (if color=True) and calculate indices for each category
     """
-    train_data = torchvision.datasets.MNIST("./datasets/", train=True, transform=torchvision.transforms.ToTensor(), download=True)
-    test_data  = torchvision.datasets.MNIST("./datasets/", train=False, transform=torchvision.transforms.ToTensor(), download=True)
+    if color:
+        transform = transforms.ToTensor()
+    
+        nchannels = 3
+        
+    else: # gray scale
+        transform = transforms.Compose(
+        [transforms.Grayscale(), transforms.ToTensor()
+       ])
+        nchannels = 1
+        
+    train_data = torchvision.datasets.CIFAR10("./datasets/", train=True, transform=transform, download=True)
+    test_data  = torchvision.datasets.CIFAR10("./datasets/", train=False, transform=transform, download=True)
 
     validation_size = int(val_ratio * len(train_data))
     train_size = len(train_data) - validation_size
+    ninputs = 32,32
+    train_dimens = (train_size, nchannels, ninputs[0]*ninputs[1])
+    val_dimens = (validation_size, nchannels, ninputs[0]*ninputs[1])
 
-    # reformat the dataset(s) in a sensible format
-    train_x = torch.zeros((train_size, 28*28))
+    train_x = torch.zeros(train_dimens)
     train_y = torch.zeros(train_size, dtype=torch.int)
-    val_x = torch.zeros((validation_size, 28*28))
+
+    val_x = torch.zeros(val_dimens)
     val_y = torch.zeros(validation_size, dtype=torch.int)
     for i, d in enumerate(train_data):
         if i < train_size:
-            train_x[i] = d[0].view(28*28)
+            train_x[i] = d[0].view(train_dimens[1], train_dimens[-1])
             train_y[i] = d[1]
         else:
-            val_x[i-train_size] = d[0].view(28*28)
+
+            val_x[i-train_size] = d[0].view(val_dimens[0], val_dimens[-1])
             val_y[i-train_size] = d[1]
     # safe image indices for each category
     train_indices = [torch.nonzero(train_y==i).flatten() for i in range(10)]
     val_indices = [torch.nonzero(val_y==i).flatten() for i in range(10)]
-    training_set = MNISTDataset(x=train_x, y=train_y, indices=train_indices)
-    validation_set = MNISTDataset(x=val_x, y=val_y, indices=val_indices)
+    training_set = CIFAR10Dataset(x=train_x, y=train_y, indices=train_indices)
+    validation_set = CIFAR10Dataset(x=val_x, y=val_y, indices=val_indices)
+    
+    test_size = len(test_data)
+    test_dimens = (test_size, nchannels, ninputs[0]*ninputs[1])
 
-    test_x = torch.zeros((len(test_data), 28*28))
-    test_y = torch.zeros(len(test_data), dtype=torch.int)
+    test_x = torch.zeros(test_dimens)
+    test_y = torch.zeros(test_size, dtype=torch.int)
     for i, d in enumerate(test_data):
-        test_x[i] = d[0].view(28*28)
+        test_x[i] = d[0].view(test_dimens[1], test_dimens[-1])
         test_y[i] = d[1]
     test_indices = [torch.nonzero(test_y==i).flatten() for i in range(10)]
-    test_set = MNISTDataset(x=test_x, y=test_y, indices=test_indices)
-
+    test_set = CIFAR10Dataset(x=test_x, y=test_y, indices=test_indices)
+    
+    # reshape to do a horizontal stack of color channels
+    training_set.x = training_set.x.view(train_dimens[0], train_dimens[1]*train_dimens[2])
+    validation_set.x = validation_set.x.view(val_dimens[0], val_dimens[1]*val_dimens[2])
+    test_set.x = test_set.x.view(test_dimens[0], test_dimens[1]*test_dimens[2])
     return training_set, validation_set, test_set
 
-def means(dataset:MNISTDataset):
-    means = torch.Tensor(10,28*28)
+def means(dataset:CIFAR10Dataset):
+    means = torch.Tensor(10,32*32)
     for i in range(10):
         means[i] = torch.mean(dataset.x[dataset.indices[i]],dim=0)
     return means
 
-def medians(dataset:MNISTDataset):
-    medians = torch.Tensor(10,28*28)
+def medians(dataset:CIFAR10Dataset):
+    ndata, ninputs = dataset.x.shape
+    medians = torch.Tensor(10,ninputs)
     for i in range(10):
-        medians[i] = torch.median(dataset.x[dataset.indices[i]],dim=0).values
+            medians[i] = torch.median(dataset.x[dataset.indices[i]],dim=0).values
     return medians
 
 if __name__ == '__main__':
-    load()
+   train, val, test = load()
