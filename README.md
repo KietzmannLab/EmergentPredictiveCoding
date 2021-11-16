@@ -28,6 +28,7 @@ We use the MNIST database of handwritten digits and CIFAR10, a labelled subset o
 
 ```training_set, validation_set, test_set = mnist.load(val_ratio=0.0)```
 for MNIST and:
+
 ```import cifar```
 
 ```training_set, validation_set, test_set = mnist.load(val_ratio=0.0, color=True)```
