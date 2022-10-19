@@ -33,13 +33,10 @@ plt.style.use('ggplot')
 # ---------------     Helper/non core functions     ---------------
 #
 
-def save_fig(fig, name, bbox_inches=None):
-    """Convenience wrapper for saving figures in a default "../figures/" directory and auto appends file extensions ".svg"
+def save_fig(fig, filepath, bbox_inches=None):
+    """Convenience wrapper for saving figures in a default "../Results/" directory and auto appends file extensions ".svg"
     and ".png"
     """
-    filepath = "Figures/" + name
-    if not os.path.isdir(os.path.dirname(filepath)):
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
     fig.savefig(filepath + ".svg", bbox_inches=bbox_inches)
     fig.savefig(filepath + ".png", bbox_inches=bbox_inches)
 
@@ -72,17 +69,28 @@ def init_axes(len_x, figsize, shape=None, colorbar=False):
             nrows -= 1
             ncols = int(len_x / nrows)
 
-    figsize = (figsize[1] * ncols + colorbar*0.5*figsize[0], figsize[0] * nrows)
-
+    #figsize = (figsize[1] * ncols + colorbar*0.5*figsize[0], figsize[0] * nrows)
+    figsize = (figsize[1] * ncols + 0.5*colorbar*figsize[0], figsize[0] * nrows)
     return plt.subplots(nrows, ncols, figsize=figsize)
 
+def set_size(w,h, ax=None):
+    """ w, h: width, height in inches """
+    if not ax: ax=plt.gca()
+    l = ax.figure.subplotpars.left
+    r = ax.figure.subplotpars.right
+    t = ax.figure.subplotpars.top
+    b = ax.figure.subplotpars.bottom
+    figw = float(w)/(r-l)
+    figh = float(h)/(t-b)
+    ax.figure.set_size_inches(figw, figh)
+    
 def display(imgs,
             lims=(-1.0, 1.0),
             cmap='seismic',
             size=None,
             figsize=(4,4),
             shape=None,
-            colorbar=False,
+            colorbar=True,
             axes_visible=True,
             layout='regular',
             figax=None):
@@ -100,7 +108,7 @@ def display(imgs,
         - size: image width and height. If 'None', it is set to the first round square of the tensor size. Default: None
         - figsize: size per image. Actual figure size depends on the subfigure configuration and if colorbars are visible. Default: (4,4)
         - shape: subfigure configuration, in rows and columns of images. If 'None', a configuration is chosen to minimise width and height. Default: None
-        - colorbar: show colorbar for each row of axes. Default: False
+        - colorbar: show colorbar for only last row of axes. Default: False
         - axes_visible: show/hide axes. Default: True
         - layout: matplotlib layout. Default: 'regular'
         - figax: if not 'None', use existing figure and axes object. Default: None
@@ -149,15 +157,22 @@ def display(imgs,
   
     if colorbar:
   
-        if isinstance(axes, np.ndarray):
-            for rax in axes:
+        # if isinstance(axes, np.ndarray):
+        #     for rax in axes:
         
-                if isinstance(rax, np.ndarray):
-                    fig.colorbar(plot_im, ax=rax, shrink=0.80, location='right');
-                else:
-                    fig.colorbar(plot_im, ax=rax, shrink=0.80);
-        else:
+        #         if isinstance(rax, np.ndarray):
+        #             fig.colorbar(plot_im, ax=rax, shrink=0.80, location='right');
+        #         else:
+        #             fig.colorbar(plot_im, ax=rax, shrink=0.80);
+        #else:
+            #fig.colorbar(plot_im, ax=axes, shrink=0.80);
+        if isinstance(axes, np.ndarray):
+            fig.colorbar(plot_im, ax = axes[-1], location='right')
             fig.colorbar(plot_im, ax=axes, shrink=0.80);
+            set_size(figsize[0]+0.5, figsize[1], axes[-1])
+        else:
+            fig.colorbar(plot_im, ax=axes)
+            set_size(figsize[0]+0.5, figsize, axes[-1])
 
     if layout == 'tight':
         fig.tight_layout()
@@ -240,116 +255,217 @@ def training_progress(net:ModelState, save=True):
 #
 # Figure 2A and Figure 4B, 5C
 #
-def bootstrap_model_activity(net_list:[ModelState],
-                   training_set:Dataset,
+
+def bootstrap_post_dynamics(net_list:[ModelState],
                    test_set:Dataset,
-                   seq_length=10,
-                   lesioned=True,
-                   latent=False,
-                   seed=None,
-                   save=True,
-                   data_type='mnist'):
-    """
-    
-    Calculates preactivation of models and 
-    theoretical bounds (input, data median, category median)
-    all CI 95% bootstrapped with replacement
-
-    """
-    if seed != None:
-        torch.manual_seed(seed)
-        np.random.seed(seed)
-
-    # fill samples for input (notn) and category median (meds)
-    notn_samples, meds_samples = np.zeros((len(net_list), seq_length)), np.zeros((len(net_list), seq_length))
-    # fill samples for global median (gmed) and network preactivation (net)
-    gmed_samples, net_samples = np.zeros((len(net_list), seq_length)), np.zeros((len(net_list), seq_length))
-    
-    # fill samples for lesioned prediction units network (net_les)
-    net_les_samples = np.zeros((len(net_list), seq_length))
-    # fill samples for lesioned error units network (net_les_rev)
-    net_les_samples_rev = np.zeros((len(net_list), seq_length))
+                   seq_length=10):
+    err_samples, pred_samples = np.zeros((len(net_list), seq_length-1)), np.zeros((len(net_list), seq_length-1))
+    pred_stats, err_stats =  dict(), dict()
     for i, net in enumerate(net_list):
-        # calculate preactivation curves when prediction units are lesioned
-        data, mu_notn, mu_meds, mu_gmed, mu_net, mu_netles, _, _ =\
-        helper.model_activity_lesioned(net, training_set, test_set, seq_length, save,\
-                                latent=latent, data_type=data_type)
-        
-        # calculate preactivation curves when error units are lesioned (control)
-        data_rev, mu_notn_rev, mu_meds_rev, mu_gmed_rev, mu_net_rev, mu_netles_rev, _, _ =\
-        helper.model_activity_lesioned(net, training_set, test_set, seq_length, save,\
-                                latent=latent, data_type=data_type, reverse=True)
+        responses, drives, synaptrans = helper.compute_responses_drive(net, \
+                                                              test_set, target=0)  
             
-        # fill sample arrays (model_instances x sequence_length)
-        notn_samples[i,:] = mu_notn; meds_samples[i,:]= mu_meds
-        gmed_samples[i,:] = mu_gmed; net_samples[i,:] = mu_net
-        net_les_samples[i,:] = mu_netles
-        net_les_samples_rev[i,:] = mu_netles_rev
-                  
- 
     
-    # compute bootstrap bounds for each time point 
-    bs_notn, bs_meds, bs_gmed, bs_net, bs_netles, bs_netles_rev = helper.compute_bootstrap(notn_samples, \
-                                                                         meds_samples, \
-                                                                             gmed_samples, \
-                                                                                 net_samples, net_les_samples, net_les_samples_rev)
-    # non lesioned netults
-    if not lesioned:
-        display_model_activity(data, [bs_notn, bs_meds, bs_gmed, bs_net, bs_netles, bs_netles_rev]\
-                              ,notn_samples,meds_samples, gmed_samples,net_samples, net_les_samples, net_les_samples_rev, save=save, data_type=data_type)
-            
-    # display lesioned results (includes control)
+        pred_units = helper.pred_class_mask(net, test_set, target=0)
+        error_units, error_units_c = helper.find_error_units(net, test_set)
+        pred_indices = (pred_units == 0).nonzero().squeeze()
+        error_indices = (error_units_c[0,:]).nonzero().squeeze()
+        # remove hybrid units
+        error_indices = error_indices[~error_indices.unsqueeze(1).eq(pred_indices).any(1)]
+        # select error & prediction units
+        preds = synaptrans[pred_indices]
+        error = synaptrans[error_indices]
+        # get the average drives of the units 
+        pred_curve = preds.mean(axis=1).mean(axis=0)
+        error_curve = error.mean(axis=1).mean(axis=0)#.sort(dim=0).values[:len(pred_indices)]
+        #error_curve =  top_error.mean(axis=0)
+        
+        
+        # record curves
+        pred_samples[i ,:] = pred_curve.numpy()
+        err_samples[i ,:] = error_curve.numpy()
+    pred_stats['samples'], err_stats['samples'] = pred_samples.mean(axis=0), err_samples.mean(axis=0)  
+    bs_pred, bs_err = helper.compute_post_drive_bootstrap(pred_samples, err_samples)
+    (h_pred, l_pred), (h_err, l_err) = helper.extract_lower_upper(bs_pred),  helper.extract_lower_upper(bs_err)
+    pred_stats['h_bound'], pred_stats['l_bound'] = h_pred, l_pred
+    err_stats['h_bound'], err_stats['l_bound'] = h_err, l_err
+    return  pred_stats, err_stats
+
+
+
+
+
+
+def display_activity_lossfn(model_results,
+                           lesioned = False,
+                           save=True,
+                           reverse=False,
+                           energy_type='ec',
+                           data_type='mnist'): 
+    """
+    visualises energy consumption of networks trained with different 
+    loss functions 
+    """
+    data, bootstraps, samples = model_results['l1_pre']
+    # get results for activation
+    _, _, _, bs_net_act, bs_netles_act, bs_netles_rev_act = model_results['l1_post'][1]
+    _, _, _, net_act_samples, netles_act_samples, netles_act_rev_samples = model_results['l1_post'][-1]
+    # # get results for activation + weights
+    # _, _, _, bs_net_weight, bs_netles_weight, bs_netles_rev_weight = model_results['l1_postandl2_weights'][1]
+    # _, _, _, net_weight_samples, netles_weight_samples, netles_weight_rev_samples = model_results['l1_postandl2_weights'][-1]
+    
+    bs_notn, bs_meds, bs_gmed, bs_net, bs_netles, bs_netles_rev = bootstraps 
+    notn_samples, meds_samples, gmed_samples, net_samples, net_les_samples, net_les_samples_rev = samples
+    # create figure plot mean values and 95% CI
+    if energy_type == 'ap':
+        fig, (ax1) = plt.subplots(1, 1, sharex=True)
+        ax2 = ax1
     else:
-        display_model_activity(data, [bs_notn, bs_meds, bs_gmed, bs_net, bs_netles, bs_netles_rev]\
-                                ,notn_samples,meds_samples, gmed_samples,net_samples, net_les_samples, net_les_samples_rev, lesioned=True, save=save, reverse=True, data_type=data_type)
+        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+    fig.subplots_adjust(hspace=0.125)  # adjust space between axes
+    start_index = 0
+    
+    if energy_type == 'ec':
+        start_index = 1
+        ax2.set_ylim(0.165, 0.20)  # RNN_pre
+        ax1.set_ylim(0.7, 0.79) # RNN_post/RNN_post+weights 
+    if energy_type == 'st':
+        start_index = 0
+        ax2.set_ylim(0.2, 0.26)  # RNN_pre
+        ax1.set_ylim(0.5, 6) # RNN_post/RNN_post+weights 
+        
+    x = np.arange(start_index+1,data.shape[0]+1)    
+    # add l1(preactivation) models    
+    mu_net = np.mean(net_samples, axis=0)[start_index:] # empirical mean of reservoir activity   
+    l1_pre = ax2.plot(x, mu_net, label="RNN_pre", color= '#EE6666')
+    lower_net, upper_net = helper.extract_lower_upper(bs_net)
+    ax2.fill_between(x, lower_net[start_index:], upper_net[start_index:], color='#EE6666', alpha=0.3) 
+    #ax2.tick_params(axis='y', labelcolor='#EE6666')
+    # add l1(act) models  
+    
+    mu_net_act = np.mean(net_act_samples, axis=0)[start_index:] # empirical mean of reservoir activity   
+    l1_post = ax1.plot(x, mu_net_act, label="RNN_post", color= 'cornflowerblue')
+    #ax1.tick_params(axis='y', labelcolor='m')
+    lower_net_act, upper_net_act = helper.extract_lower_upper(bs_net_act)
+    ax1.fill_between(x, lower_net_act[start_index:], upper_net_act[start_index:], color='cornflowerblue', alpha=0.3) 
+    
+    # add l1(post) + l2(weights) models    
+    # mu_net_weight = np.mean(net_weight_samples, axis=0)[start_index:] # empirical mean of reservoir activity   
+    # l1l2_postW = ax1.plot(x, mu_net_weight, linestyle='--', label="RNN_post+weights", color= 'cyan')
+    # lower_net_weight, upper_net_weight = helper.extract_lower_upper(bs_net_weight)
+    # ax2.fill_between(x, lower_net_weight[start_index:], upper_net_weight[start_index:], color='cyan', alpha=0.3) 
+   
+   
+    
+    
+    if energy_type == 'ec' or energy_type=='st':
+        ax1.spines.bottom.set_visible(False)
+        ax2.spines.top.set_visible(False)
+        ax1.spines.top.set_visible(False)
+        #ax1.xaxis.tick_top()
+        ax1.tick_params(labeltop=False)  # don't put tick labels at the top
+        ax1.tick_params(bottom=False)
+
+        d = .4  # proportion of vertical to horizontal extent of the slanted line
+        kwargs = dict(marker=[(-1, -d), (1, d)], markersize=12,
+                      linestyle="none", color='k', mec='k', mew=1, clip_on=False)
+        ax1.plot([0, 1], [0, 0], transform=ax1.transAxes, **kwargs)
+        ax2.plot([0, 1], [1, 1], transform=ax2.transAxes, **kwargs)
 
 
+    
+    if energy_type == 'ec' or energy_type=='st':
+        h1, l1 = ax1.get_legend_handles_labels()
+        h2, l2 = ax2.get_legend_handles_labels()
+        ax1.legend(h1+h2, l1+l2, loc=0)
+    else:
+        ax1.legend()
+    
+    
+    ax2.xaxis.set_major_locator(MaxNLocator(integer=True));
 
+    ax1.grid(True)
+    ax2.grid(True)
+    #ax1.spines['right'].set_visible(False)
+    #ax1.spines['top'].set_visible(False)
+    #ax1.xaxis.tick_top()
+    ax1.tick_params(labeltop=False)  # don't put tick labels at the top
+    #ax2.xaxis.tick_bottom()
+    #ax1.xaxis.set_tick_params(which='major', size=10, width=2, labelsize=8)
+    #ax1.xaxis.set_tick_params(which='major', size=10, width=2, labelsize=8)
+    #ax1.yaxis.set_tick_params(which='major', size=10, width=2, labelsize=8)
+    #ax2.yaxis.set_tick_params(which='major', size=10, width=2, labelsize=8)
+    
 
-def display_model_activity(data,
-                           bootstraps,
-                           notn_samples,
-                           meds_samples,
-                           gmed_samples,
-                           net_samples, 
-                           net_les_samples,
-                           net_les_samples_rev,
+    if save is True:
+        if lesioned:
+            save_fig(fig, "energy_curves" + "_"+ energy_type + "_"+data_type+"/lesioned-model-activity", bbox_inches='tight')
+        else:
+            save_fig(fig, "energy_curves" + "_"+ energy_type + "_"+data_type+"/model-activity", bbox_inches='tight')
+    return fig, (ax1, ax2)
+
+def display_model_activity(model_results,
                            lesioned = False,
                            save=True,
                            reverse=False,
                            data_type='mnist'): 
     """
-    visualises preactivation of models and preactivations derived from
-    theoretical bounds including confidence intervals
+    visualises energy consumption of networks trained with different 
+    loss functions 
     """
-
-    bs_notn, bs_meds, bs_gmed, bs_net, bs_netles, bs_netles_rev = bootstraps   
+    data, bootstraps, samples = model_results['l1_pre']
+    # get results for activation
+    _, _, _, bs_net_act, bs_netles_act, bs_netles_rev_act = model_results['l1_post'][1]
+    _, _, _, net_act_samples, netles_act_samples, netles_act_rev_samples = model_results['l1_post'][-1]
+    # get results for activation + weights
+    _, _, _, bs_net_weight, bs_netles_weight, bs_netles_rev_weight = model_results['l1_postandl2_weights'][1]
+    _, _, _, net_weight_samples, netles_weight_samples, netles_weight_rev_samples = model_results['l1_postandl2_weights'][-1]
+    
+    bs_notn, bs_meds, bs_gmed, bs_net, bs_netles, bs_netles_rev = bootstraps 
+    notn_samples, meds_samples, gmed_samples, net_samples, net_les_samples, net_les_samples_rev = samples
     # create figure plot mean values and 95% CI
     fig, axes = plt.subplots(1, figsize=(14,10))
    
-    x = np.arange(1,data.shape[0]+1)
-    mu_gmed = np.mean(gmed_samples, axis=0) # empirical mean of global median
-    axes.plot(x, mu_gmed, label="dataset median inhibition", color= '0.2')
-    lower_gmed, upper_gmed = helper.extract_lower_upper(bs_gmed)
-    axes.fill_between(x, lower_gmed, upper_gmed, color='0.2', alpha=0.3) 
-    mu_meds = np.mean(meds_samples, axis=0) # empirical mean of category median
-    axes.plot(x, mu_meds, label="category median inhibition", color='0.7')
-    lower_med, upper_med = helper.extract_lower_upper(bs_meds)
-    axes.fill_between(x, lower_med, upper_med, color='0.7', alpha=0.3) 
+    x = np.arange(2,data.shape[0]+1)
+    #mu_gmed = np.mean(gmed_samples, axis=0) # empirical mean of global median
+    # axes.plot(x, mu_gmed, label="dataset median inhibition", color= '0.2')
+    # lower_gmed, upper_gmed = helper.extract_lower_upper(bs_gmed)
+    # axes.fill_between(x, lower_gmed, upper_gmed, color='0.2', alpha=0.3) 
+    # mu_meds = np.mean(meds_samples, axis=0) # empirical mean of category median
+    # axes.plot(x, mu_meds, label="category median inhibition", color='0.7')
+    # lower_med, upper_med = helper.extract_lower_upper(bs_meds)
+    # axes.fill_between(x, lower_med, upper_med, color='0.7', alpha=0.3) 
     
     # add a space between bounds and data that is input-dependent
-    axes.plot([],[], linestyle='', label=' ')
+    #axes.plot([],[], linestyle='', label=' ')
     
-    if not lesioned: # add input drive to the figure
-        mu_notn = np.mean(notn_samples, axis=0) # empirical mean of input drive sequences
-        axes.plot(x, mu_notn, label="input", color= '#3388BB')
-        lower_notn, upper_notn = helper.extract_lower_upper(bs_notn)
-        axes.fill_between(x, lower_notn, upper_notn, color='#3388BB', alpha=0.3) 
-    mu_net = np.mean(net_samples, axis=0) # empirical mean of reservoir activity   
-    axes.plot(x, mu_net, label="RNN", color= '#EE6666')
+    #if not lesioned: # add input drive to the figure
+        #mu_notn = np.mean(notn_samples, axis=0) # empirical mean of input drive sequences
+        #axes.plot(x, mu_notn, label="input", color= '#3388BB')
+        #lower_notn, upper_notn = helper.extract_lower_upper(bs_notn)
+        #axes.fill_between(x, lower_notn, upper_notn, color='#3388BB', alpha=0.3) 
+    # add l1(preactivation) models    
+    mu_net = np.mean(net_samples, axis=0)[1:] # empirical mean of reservoir activity   
+    l1_pre = axes.plot(x, mu_net, label="RNN_pre", color= '#EE6666')
     lower_net, upper_net = helper.extract_lower_upper(bs_net)
-
-    axes.fill_between(x, lower_net, upper_net, color='#EE6666', alpha=0.3) 
+    axes.fill_between(x, lower_net[1:], upper_net[1:], color='#EE6666', alpha=0.3) 
+    axes.tick_params(axis='y', labelcolor='#EE6666')
+    # add l1(act) models  
+    axes2= axes.twinx()
+    mu_net_act = np.mean(net_act_samples, axis=0)[1:] # empirical mean of reservoir activity   
+    l1_post = axes2.plot(x, mu_net_act, label="RNN_post", color= 'm')
+    axes2.tick_params(axis='y', labelcolor='m')
+   
+    lower_net_act, upper_net_act = helper.extract_lower_upper(bs_net_act)
+    axes2.fill_between(x, lower_net_act[1:], upper_net_act[1:], color='m', alpha=0.3) 
+    
+    # add l1(post) + l2(weights) models    
+    mu_net_weight = np.mean(net_weight_samples, axis=0)[1:] # empirical mean of reservoir activity   
+    l1l2_postW = axes2.plot(x, mu_net_weight, linestyle='--', label="RNN_post+weights", color= 'm')
+    lower_net_weight, upper_net_weight = helper.extract_lower_upper(bs_net_weight)
+    #axes2.fill_between(x, lower_net_weight[1:], upper_net_weight[1:], color='m', alpha=0.1) 
+   
+    
    
     if lesioned: # add lesioned reservoir to the figure 
         mu_netles = np.mean(net_les_samples, axis=0) # empirical mean of sample set
@@ -358,31 +474,41 @@ def display_model_activity(data,
         axes.fill_between(x, lower_netles, upper_netles, color='#EECC55', alpha=0.3) 
         if reverse:
             mu_netles_rev = np.mean(net_les_samples_rev, axis=0) # empirical mean of sample set
-            axes.plot(x, mu_netles_rev, label="error units lesioned", color= '#5efc03')
+            axes.plot(x, mu_netles_rev, linestyle='--', label="error units lesioned", color= '#5efc03')
             lower_netles_rev, upper_netles_rev = helper.extract_lower_upper(bs_netles_rev)
         
             axes.fill_between(x, lower_netles_rev, upper_netles_rev, color='#5efc03', alpha=0.3) 
 
     axes.xaxis.set_major_locator(MaxNLocator(integer=True));
-  
+    
     axes.legend(fontsize=18,labelspacing=0.1, facecolor='0.95')
+    
+    # lns = [l1_pre, l1_post, l1l2_postW]
+    # labs = [l.get_label() for l in lns]
+    # axes.legend(lns, labs, loc=0)
+    h1, l1 = axes.get_legend_handles_labels()
+    h2, l2 = axes2.get_legend_handles_labels()
+    axes.legend(h1+h2, l1+l2, loc=0)
     axes.grid(True)
     axes.spines['right'].set_visible(False)
     axes.spines['top'].set_visible(False)
     axes.xaxis.set_tick_params(which='major', size=10, width=2, labelsize=16)
     axes.yaxis.set_tick_params(which='major', size=10, width=2, labelsize=16)
+    axes2.xaxis.set_tick_params(which='major', size=10, width=2, labelsize=16)
+    axes2.yaxis.set_tick_params(which='major', size=10, width=2, labelsize=16)
+
 
     if save is True:
         if lesioned:
             save_fig(fig, "preactivation_curves" + data_type+"/lesioned-model-activity", bbox_inches='tight')
         else:
             save_fig(fig,  "preactivation_curves" + data_type+"/model-activity", bbox_inches='tight')
-    return fig  
+    return fig, axes,axes2 
 
 #
-# Figure 2B 
+# Figure 2C 
 #
-def example_sequence_state(net:ModelState, dataset:Dataset, latent=False, seed=2553, save=True):
+def example_sequence_state(net:ModelState, dataset:Dataset, latent=False, seed=2553, save=False):
     """
     visualises input and internal drive for a sample sequence
     """
@@ -390,134 +516,95 @@ def example_sequence_state(net:ModelState, dataset:Dataset, latent=False, seed=2
         torch.manual_seed(seed)
         np.random.seed(seed)
         
-    batches, _ = dataset.create_batches(batch_size=1, sequence_length=10, shuffle=False)
+    batches, _ = dataset.create_batches(batch_size=-1, sequence_length=10, shuffle=False)
 
-    seq = batches[0,:,:,:]
-    input_size = seq.shape[-1] # make sure we only visualize input units and no latent resources
-    X = []; P = []; L=[]
+    ex_seq = batches[0,:,:,:]
+    input_size = ex_seq.shape[-1] # make sure we only visualize input units and no latent resources
+    X = []; P = []; H=[]; T=[]; L=[]
     
-    h = net.model.init_state(seq.shape[1])
- 
-    for x in seq:
+    h = net.model.init_state(ex_seq.shape[1])
+   
+    for x in ex_seq:
 
         p = net.predict(h, latent)
         h, l_a = net.model(x, state=h)
-      
-   
-        X.append(x[:input_size].mean(dim=0).detach().cpu())
-        P.append(p[:,:input_size].mean(dim=0).detach().cpu())
+        #x_mu, p_mu = x[:,:input_size].mean(dim=0), p[:,:input_size].mean(dim=0)
+        #x_std, p_std = x[:, :input_size].std(dim=0), p[:, :input_size].std(dim=0)
+        X.append(x[0,:input_size].detach().cpu())
+        P.append(p[0,:input_size].detach().cpu())
+        H.append(h[0,:input_size].detach().cpu())
+        T.append(l_a[0][0,:input_size].detach().cpu())
+        # standardize input and internal drive so that they're on the same scale
+        # x_scaled = (x[0,:input_size]- x_mu) / x_std
+        # p_scaled = (p[0,:input_size]- p_mu) / p_std
+        # x_scaled[torch.isnan(x_scaled)]=0 
+        # p_scaled[torch.isnan(p_scaled)]=0 
+        #t  = x_scaled.detach().cpu() + p_scaled.detach().cpu()
+        
         if latent: # look at latent unit drive 
             L.append(p[:,input_size:].mean(dim=0).detach().cpu())
 
-    fig = plt.figure(figsize=(3,3))
-    if latent:
-        fig, axes = display(X+P+L,  shape=(10,3), figsize=(3,3), axes_visible=False, layout='tight')
-    else:
-         fig, axes = display(X+P,  shape=(10,2), figsize=(3,3), axes_visible=False, layout='tight')
+    # fig = plt.figure(figsize=(3,3))
+    # if latent:
+    #     fig, axes = display(X+P+L,  shape=(10,3), figsize=(3,3), axes_visible=False, layout='tight')
+    # else:
+    #      fig, axes = display(X+P+H+T,  shape=(10,3), figsize=(3,3), axes_visible=False, layout='tight')
 
     
-    if save is True:
-        save_fig(fig, "example_sequence_state", bbox_inches='tight')
+    # if save is True:
+    #     save_fig(fig, "example_sequence_state", bbox_inches='tight')
+    return X, P, H, T
 
 #
-# Figure 3B
+# Figure 3B/5B
 #
-def topographic_distribution(net:ModelState, dataset:Dataset, training_set:Dataset=None, seed=2553, save=False):
+def pixel_variance(pix_var):
+    """Plot variance of each pixel and channel"""
+    vmi, vma = 0, pix_var.max()
+    fig, ax  = plt.subplots(1, 1)
+    im = ax.imshow(pix_var, vmin=vmi, vmax=vma, cmap='gray')
+    ax.grid(False)
+    fig.colorbar(im)
+    return fig
+        
+def  topographic_distribution(type_mask):
     """
     
     plots topographic distribution of prediction and error units in
     data space.
     
     """
-    if seed != None:
-        torch.manual_seed(seed)
-        np.random.seed(seed)
-        
-    preact_stats = helper.compute_preact_stats(net, dataset)
-    nunits = net.model.hidden_size
-    pred_rule = torch.zeros(nunits)
-    count = 0
-    seen = []
-    for cls_plt in range(10):
-        med, mad = preact_stats[:, cls_plt, 0], preact_stats[:, cls_plt, 1]
-        
-        # scale MAD to obtain a pseudo standard deviation
-        # https://stats.stackexchange.com/questions/355943/scale-factor-for-mad-for-non-normal-distribution)
-        
-        for i in range(nunits): # 99% CI
-            if (torch.abs(med[i]) - torch.abs(2.576*mad[i])) > 0:
-                pred_rule[i] = 0.5
-                if i not in seen:
-                    count += 1
-                    seen.append(i)
-
-    for i in range(nunits): # prediction unit
-        if pred_rule[i] < 0.5:
-            pred_rule[i] = -0.5
-
-                
-    fig,ax  = plt.subplots(1, 1)
-
-    cmap_base = 'seismic'
-    vmin, vmax = 0, 1
-    cmap = helper.truncate_colormap(cmap_base, vmin, vmax)
-
-    display(pred_rule, axes_visible=False, cmap=cmap, figax=(fig,ax))
-    if save is True:
-        save_fig(fig, net.title+"/topo_distrib_", bbox_inches='tight')
-#
-# Figure 3A, 5B & Appendix A Figure A3 & A4
-#     
-def scatter_units(net:ModelState, dataset:Dataset, training_set:Dataset=None, cls_plt=9, seed=2553, save=False):
-    """
-    Create scatter plots of the units
-    Units will be assigned to two colors, red for prediction units
-    & blue for error units
-    Decision boundary is plotted that demarcates the border between
-    prediction & error units.
-
-    """
-    if seed != None:
-        torch.manual_seed(seed)
-        np.random.seed(seed)
-        
-    preact_stats = helper.compute_preact_stats(net, dataset)
-  
-    med, mad = preact_stats[:, cls_plt, 0], preact_stats[:, cls_plt, 1]
-      
- 
-    fig,ax  = plt.subplots(1, 1)
-    nunits = net.model.hidden_size
-    pred_rule = torch.zeros(nunits)
-    # scale MAD to obtain a pseudo standard deviation
-    # https://stats.stackexchange.com/questions/355943/scale-factor-for-mad-for-non-normal-distribution)
-    for i in range(nunits):
-       
-        if (torch.abs(med[i]) - torch.abs(2.576*mad[i])) > 0:
-            pred_rule[i] = 1 # prediction unit is predictive for class 'cls_plt'
-
     
-    scatter(mad[pred_rule>0] ,med[pred_rule>0],color='r',figax=(fig,ax))
+    import seaborn as sns
+    from matplotlib.colors import ListedColormap
+    blues = ["#3399ff", "#0000ff"] # pure error
+    reds = ["#ff9999","#ff0000"] # pure prediction
+    browns = ["#ffff00ff","#ffaa00ff"] # hybrid
+    grey= ["#cccccc"] # unspecified
+    combined = blues + reds + browns + grey
+    cmap = ListedColormap(sns.color_palette(combined).as_hex())
     
-    scatter(mad[pred_rule==0], med[pred_rule==0],color='b',figax=(fig,ax))
+    if len(type_mask.shape) > 2: # channel dim exists
+        fig,ax  = plt.subplots(1, 3)
+        nc, nx, ny = type_mask.shape
+        for c in range(nc):
+            ax[c].imshow(type_mask[c], cmap=cmap)
+            ax[c].grid(False)
+    else:
+        fig,ax  = plt.subplots(1, 1)
+        ax.imshow(type_mask, cmap=cmap)
+        ax.grid(False)
+    
+    return fig
 
-    # construct decision boundary for 
-    d_bound = 2.576*np.linspace(mad.min(), mad.max(), len(mad))
-    ax.plot(np.linspace(mad.min(), mad.max(), len(mad)), d_bound, '--', color='black')
 
-    ax.set_xlabel("MAD of preactivation at final time step",fontsize=13)
-    ax.set_ylabel("Median preactivation at final time step",fontsize=13);
-    ax.grid(True)
-
-    if save is True:
-        save_fig(fig, net.title+"/decision_boundary"+str(cls_plt), bbox_inches='tight')
         
 
 #
-# Appendix A Figures A1 & A2
+# Appendix A Figures A1 & A2 & A3
 #
 
-def pred_after_timestep(net:ModelState, dataset:Dataset, mask=None, seed=2553, save=True):
+def pred_after_timestep(net, dataset, mask=None, digits=[0], seed=2553):
     """
     visualises internal drive after 0-9 preceding frames.
     """
@@ -525,24 +612,71 @@ def pred_after_timestep(net:ModelState, dataset:Dataset, mask=None, seed=2553, s
         torch.manual_seed(seed)
         np.random.seed(seed)
         
+    
+        
     imgs= []
+    ntime=10
+    nunits = net.model.input_size
 
-    for d in range(10):
-        imgs = imgs + [net.predict(torch.zeros(1,784))] + [net.predict(helper._run_seq_from_digit(d, i, net, dataset, mask=mask)).mean(dim=0) for i in range(1,10)]
 
-    fig, axes = display(imgs, shape=(10,10), axes_visible=False)
-
-    for i in range(10):
-        axes[i][0].set_ylabel(str(i)+":", ha='center', fontsize=60, rotation=0, labelpad=30)
+    for digit in digits:
+        imgs = imgs + [net.predict(torch.zeros(1,nunits))] +\
+            [net.predict(helper._run_seq_from_digit(digit, i, net, dataset, mask=mask)).mean(dim=0) for i in range(1,ntime)]
    
+    fig, axes = display(imgs, shape=(ntime, len(digits)), axes_visible=False)
+
 
     fig.tight_layout()
+    return fig, axes
 
-    if save:
-        save_fig(fig,
-                      net.title+"/pred-after-timestep" + ("-lesioned" if mask is not None else ""),
-                      bbox_inches='tight')
+def pred_after_timestep_predonly(net, dataset, mask, pred_mask, digits=[0], seed=2553):
+    """
+    visualises internal drive after 0-9 preceding frames. Where the internal
+    drive only comes from prediction units.
+    """
+    if seed != None:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
         
+    
+        
+    imgs= []
+    ntime=10
+    nunits = net.model.input_size
+
+
+    for digit in digits:
+        imgs = imgs + [net.predict(torch.zeros(1,nunits))] +\
+            [net.predict_predonly(helper._run_seq_from_digit(digit, i, net, dataset, mask=mask), pred_mask=pred_mask).mean(dim=0) for i in range(1,ntime)]
+   
+    fig, axes = display(imgs, shape=(ntime, len(digits)), axes_visible=False)
+
+
+    fig.tight_layout()
+    return fig, axes     
 
     
-    
+def color_code_pred_units(mnist, cifar, save=False):
+    mnist_net, test_set_m = mnist
+    cifar_net, test_set_c = cifar
+    pred_mnist, pred_cifar = torch.zeros(mnist_net.model.W.shape[0]), torch.zeros(cifar_net.model.W.shape[0])
+    for target in range(0, 10):
+        pred_mask_m = helper.pred_class_mask(mnist_net, test_set_m, target=target)
+        pred_mask_c = helper.pred_class_mask(cifar_net, test_set_c, target=target)
+        pred_mnist += pred_mask_m
+        pred_cifar += pred_mask_c
+        
+    fig, axes  = plt.subplots(1, 2)
+    cmap_base = 'seismic'
+    vmin, vmax = 0, 1
+    cmap = helper.truncate_colormap(cmap_base, vmin, vmax)
+    im1, im2 = axes[0].imshow(pred_mnist.view(28,28),  cmap=cmap),  axes[1].imshow(pred_cifar.view(32*32,3)[...,0],  cmap=cmap)
+    axes[0].grid(False); axes[1].grid(False)
+    fig.subplots_adjust(right=0.8)
+    cbar_ax = fig.add_axes([0.85, 0.25, 0.05, 0.5])
+    fig.colorbar(im2, cax=cbar_ax)
+
+   
+
+    if save is True:
+        save_fig(fig, "pixel_var_mnist_cifar", bbox_inches='tight')
