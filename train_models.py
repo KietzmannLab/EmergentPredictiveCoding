@@ -1,6 +1,7 @@
 import torch
-import functions
+
 import argparse
+import random
 parser = argparse.ArgumentParser(description='device')
 parser.add_argument('--i', type=str, help='Device index')
 args = parser.parse_args()
@@ -11,76 +12,104 @@ if torch.cuda.is_available():
 else:
     DEVICE = 'cpu'
 
+
 print('Using {}'.format(DEVICE))
 
-INPUT_SIZE_MNIST = 28*28
-INPUT_SIZE_CIFAR = 32*32*3
+INPUT_SIZE= 28*28
+
 BATCH_SIZE = 32
 SEQ_LENGTH = 10
-LOSS_FN = functions.L1Loss
+
 # dataset loaders
 import mnist
-import cifar
 
 import Network
 
 from train import train
 
-training_set_m, validation_set_m, test_set_m = mnist.load(val_ratio=0.0)
-training_set_c, validation_set_c, test_set_c = cifar.load(val_ratio=0.0, color=True)
-"""
-Create and train ten instances of energy efficient RNNs for MNIST & CIFAR10
-"""
-N = 10 # number of model instances
+train_set, validation_set, test_set = mnist.load(val_ratio=0.0)
 
+"""
+Create and train ten instances of energy efficient RNNs for MNIST 
+"""
+n_instances = 10 # number of model instances
+#losses = [str(beta)+'beta'+'l1_postandl2_weights' for beta in [3708.0] ]
+losses = ['l1_pre', 'l1_post', [str(beta)+'beta'+'l1_postandl2_weights' for beta in [3708.0]][0]]
+#seeds = [[random.randint(0,10000) for i in range(n_instances)], \
+seeds = [[random.randint(0,10000) for i in range(n_instances)]]
 # train MNIST networks
-for i in range(N):
-        mnist_net= Network.State(activation_func=torch.nn.ReLU(),
-            optimizer=torch.optim.Adam,
-            lr=1e-4,
-            input_size=INPUT_SIZE_MNIST,
-            hidden_size=INPUT_SIZE_MNIST,
-            title="/networks/mnist_net",
-            device=DEVICE)
-    
-   
-    
-        train(mnist_net,
-              train_ds=training_set_m,
-              test_ds=test_set_m,
-              loss_fn=LOSS_FN,
+for loss_ind, loss in enumerate(losses):
+    for i in range(0, n_instances):
+        net = Network.State(activation_func=torch.nn.ReLU(),
+                optimizer=torch.optim.Adam,
+                lr=1e-4,
+                input_size=INPUT_SIZE,
+                hidden_size=INPUT_SIZE,
+                title="patterns_rev/seeded_mnist/mnist_net_"+loss,
+                device=DEVICE,
+                seed=seeds[loss_ind][i])
+        
+      
+        train(net,
+              train_ds=train_set,
+              test_ds=test_set,
+              loss_fn=loss,
               num_epochs=200,
               batch_size=BATCH_SIZE,
               sequence_length=SEQ_LENGTH,
               verbose=False)
+            
+           
         
-       
-    
         # # save model
-        mnist_net.save()
+        net.save()
 
-# train cifar networks
-for i in range(N):        
-    cifar_net= Network.State(activation_func=torch.nn.ReLU(),
-    optimizer=torch.optim.Adam,
-    lr=1e-4,
-    input_size=INPUT_SIZE_CIFAR,
-    hidden_size=INPUT_SIZE_CIFAR,
-    title="/networks/cifar_nets/cifar_net",
-    prevbatch=True,
-    device=DEVICE)
-    
-       
-    
-    train(cifar_net,
-      train_ds=training_set_c,
-      test_ds=test_set_c,
-      loss_fn=LOSS_FN,
-      num_epochs=1000,
-      batch_size=BATCH_SIZE,
-      sequence_length=SEQ_LENGTH,
-      verbose=False)
-    
-    
-    ## save model
-    cifar_net.save()
+
+"""
+Create and train ten instances of energy efficient RNNs for CIFAR10
+"""
+INPUT_SIZE = 3072
+HIDDEN_SIZE = 3072 # add 32 to this number if you want to have extra latent resources
+BATCH_SIZE = 32
+SEQ_LENGTH = 10
+LOSS_FN = 'l1_pre'
+
+import cifar
+
+
+
+training_set, validation_set, test_set = cifar.load(val_ratio=0.0, color=True)
+
+"""
+Create and train ten instances of energy efficient RNNs with cifar 10
+# """
+N = 1 # number of model instances per seed
+
+seeds = [random.randint(0,10000) for i in range(N)]   
+
+for i in range(N):
+
+        cifar_net= Network.State(activation_func=torch.nn.ReLU(),
+        optimizer=torch.optim.Adam,
+        lr=1e-4,
+        input_size=INPUT_SIZE,
+        hidden_size=HIDDEN_SIZE,
+        title="/final_networks/seeded_cifar_nets/cifar_net_"+str(i),
+        device=DEVICE,
+        seed=seeds[i])
+        
+   
+        cifar_net.save() 
+   
+        train(cifar_net,
+              train_ds=training_set,
+              test_ds=test_set,
+              loss_fn=LOSS_FN,
+              num_epochs=1000,
+              batch_size=BATCH_SIZE,
+              sequence_length=SEQ_LENGTH,
+              verbose=False
+              )
+        ## save model
+        cifar_net.save()
+        
