@@ -23,7 +23,7 @@ class Network(torch.nn.Module):
         self.W = torch.nn.Parameter(weights_init(hidden_size, hidden_size))
         self.prevbatch = prevbatch
 
-    def forward(self, x, state=None, synap_trans=False):
+    def forward(self, x, state=None, synap_trans=False, mask=None):
 
         if state is None:
             state = self.init_state(x.shape[0])
@@ -32,11 +32,14 @@ class Network(torch.nn.Module):
         # pad input so it matches the hidden state dimensions
         if not self.is_conv:
             x_pad = F.pad(x, (0, self.hidden_size-self.input_size), "constant", 0)
-            a = h @ self.W + x_pad
+            if mask is not None:
+                a = h @ (self.W * mask) + x_pad
+            else:
+                a = h @ self.W + x_pad
 
         h = self.activation_func(a)
-        # return state vector and preactivation vector 
-        return h, [a]
+        # return state vector and list of losses 
+        return h, [a, h, self.W]
 
     def init_state(self, batch_size):
         return torch.zeros((batch_size, self.hidden_size))
@@ -55,11 +58,12 @@ class State(ModelState):
                  weights_init=functions.init_params,
                  prevbatch=False,
                  conv=False,
-                 seed=0):
+                 seed=None):
 
-        if seed is not None:
+        if seed != None:
             torch.manual_seed(seed)
             np.random.seed(seed)
+            self.seed = seed
            
         ModelState.__init__(self,
                             
@@ -70,7 +74,10 @@ class State(ModelState):
                             title,
                             {
                                 "train loss": np.zeros(0),
-                                "test loss": np.zeros(0)
+                                "test loss": np.zeros(0),
+                                "h": np.zeros(0),
+                                "Wl1": np.zeros(0),
+                                "Wl2": np.zeros(0)
                             },
                             device)
 
@@ -96,13 +103,35 @@ class State(ModelState):
         loss = torch.zeros(1, dtype=torch.float, requires_grad=True)
 
         for i in range(sequence_length):
-            h, l_a = self.model(batch[i], state=h) # l_a is now a list of three terms l_a[1] is for comparison
-            loss = loss + self.loss(l_a[0], loss_fn) 
-
+            h, l_a = self.model(batch[i], state=h) # l_a is now a list of potential loss terms 
+            
+            loss = loss + self.loss(l_a, loss_fn) 
+        state = h
         return loss, loss.detach(), state
+    
+    def get_next_state(self, state, x):
+        """
+        Return next state of model given current state and input
 
-    def loss(self, l_a, loss_fn):
-        return loss_fn(l_a)
+        """
+        next_state, _ = self.model(x, state)
+        return next_state
+        
+
+    def loss(self, loss_terms, loss):
+        loss_t1, loss_t2,  beta = loss, None, 1
+        # split for weighting
+        if 'beta' in loss:
+            beta, loss = loss.split('beta')
+            beta = float(beta)
+        if 'and' in loss:
+            loss_t1, loss_t2 = loss.split('and')
+    
+        # parse loss terms
+        loss_fn_t1, loss_arg_t1 = functions.parse_loss(loss_t1, loss_terms)
+        loss_fn_t2, loss_arg_t2 = functions.parse_loss(loss_t2, loss_terms)
+                    
+        return loss_fn_t1(loss_arg_t1) + beta*loss_fn_t2(loss_arg_t2)
 
     def predict(self, state, latent=False):
         """
@@ -113,6 +142,19 @@ class State(ModelState):
             return pred[:,:self.model.input_size]
         return pred[:,:]
 
+    def predict_predonly(self, state, pred_mask, latent=False):
+        """
+        Returns the networks 'prediction' for the input 
+        from the prediction units only
+        """
+        W_pred = self.model.W.clone().detach()
+        # set all non prediction units to zero
+        W_pred[pred_mask==1, :] = 0
+        pred = state @ W_pred
+        if not latent:
+            return pred[:,:self.model.input_size]
+        return pred[:,:]     
+        
     def step(self, loss):
         loss.backward()
         #nn.utils.clip_grad_value_(self.model.parameters(), clip_value=1.0)
@@ -121,8 +163,9 @@ class State(ModelState):
     def zero_grad(self):
         self.optimizer.zero_grad()
 
-    def on_results(self, epoch:int, train_res, test_res):
+    def on_results(self, epoch:int, train_res, test_res, m_state):
         """Save training metadata
         """
-        functions.append_dict(self.results, {"train loss": train_res.cpu().numpy(), "test loss": test_res.cpu().numpy()})
+        h, Wl1,Wl2 = m_state
+        functions.append_dict(self.results, {"train loss": train_res.cpu().numpy(), "test loss": test_res.cpu().numpy(), "h": h, "Wl1": Wl1, "Wl2":Wl2})
         self.epochs += 1
