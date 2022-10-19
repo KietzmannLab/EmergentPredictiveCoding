@@ -80,10 +80,11 @@ def train_epoch(ms: ModelState,
 
     tot_loss /= num_batches
     tot_res /= num_batches
-
+    
+    
     print("Training loss: {:.8f}".format(tot_loss))
 
-    return tot_loss, tot_res
+    return tot_loss, tot_res, state.detach()
 
 def train(ms: ModelState,
           train_ds: Dataset,
@@ -93,12 +94,16 @@ def train(ms: ModelState,
           batch_size: int = 32,
           sequence_length: int = 3,
           verbose = False):
-
+    ms_name = ms.title.split('/')[-1]
     for epoch in range(ms.epochs+1, ms.epochs+1 + num_epochs):
-        print("Epoch {}".format(epoch))
+        print("Epoch {}, Lossfn {}".format(epoch, ms_name))
 
-        train_loss, train_res = train_epoch(ms, train_ds, loss_fn, batch_size, sequence_length, verbose=verbose)
+        train_loss, train_res, h = train_epoch(ms, train_ds, loss_fn, batch_size, sequence_length, verbose=verbose)
 
         test_loss, test_res = test_epoch(ms, test_ds, loss_fn, batch_size, sequence_length)
-
-        ms.on_results(epoch, train_res, test_res)
+        if epoch == 1 or epoch == num_epochs - 10:
+            W = ms.model.W.detach()
+            torch.save(W, 'models/'+ms.title+'W_'+ str(epoch)+'.pt')
+        h, W_l1, W_l2 = functions.L1Loss(h),  functions.L1Loss(ms.model.W.detach()), functions.L2Loss(ms.model.W.detach())
+        m_state = [[h.cpu().numpy()], [W_l1.cpu().numpy()], [W_l2.cpu().numpy()]]
+        ms.on_results(epoch, train_res, test_res, m_state)
