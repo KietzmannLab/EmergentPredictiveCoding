@@ -73,7 +73,7 @@ training_set, validation_set, test_set = cifar.load(val_ratio=0.0, color=True)
 """
 Create and train ten instances of energy efficient RNNs with cifar 10
 # """
-N = 10 # number of model instances per seed
+N = 1 # number of model instances per seed
 
 seeds = [random.randint(0,10000) for i in range(N)]   
 
