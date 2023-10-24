@@ -4,11 +4,10 @@
 Supplementary material for 'Predictive coding is a consequence of energy efficiency in recurrent  neural networks'
 
 ### Dependencies
-1. Numpy
-2. Matplotlib
-2. PyTorch 1.4.0
-3. Python  >= 3.7
-4. [bootstrapped](https://pypi.org/project/bootstrapped/) 
+
+```pip install -r requirements.txt```
+
+Or look in requirements.txt - be sure to use Python >=3.7
 
 ### Usage Notes:
 - To replicate the results in the paper, please see [paper_results.ipynb](https://github.com/KietzmannLab/EmergentPredictiveCoding/blob/master/paper_results.ipynb)  
@@ -47,10 +46,9 @@ If you use this code in your work, we ask you to please cite:
 Ali, A., Ahmad N., de Groot E., van Gerven M.A.J., Kietzmann T.C. (2021). **Predictive coding is a consequence of energy efficiency in recurrent neural networks.** doi: https://doi.org/10.1101/2021.02.16.430904
 
 
+### TODO
 
-
-
-
+- Fix runtime warnings on fig*.py
 
 
 
