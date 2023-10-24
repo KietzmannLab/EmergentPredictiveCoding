@@ -30,7 +30,7 @@ print('Using {}'.format(DEVICE))
 
 R_PATH = 'Results/Fig3/Data/'
 F_PATH = 'Results/Fig3/'
-M_PATH = 'final_networks/seeded_mnist/'
+M_PATH = 'patterns_rev/seeded_mnist/'
 hdf_path = R_PATH+'network_stats.h5'
 
 LOAD = False
