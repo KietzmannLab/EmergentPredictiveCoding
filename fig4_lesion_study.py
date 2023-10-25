@@ -184,7 +184,6 @@ plt.gca().set_aspect('auto')
 plt.grid(True)
 
 fig.tight_layout()
-plt.show()
 plot.save_fig(fig, F_PATH + 'postsynaptic_drive_dynamics')
 store.close()
 #------------------------------------------------------------------------------
