@@ -10,7 +10,7 @@ Supplementary material for 'Predictive coding is a consequence of energy efficie
 Or look in requirements.txt - be sure to use Python >=3.7
 
 ### Usage Notes:
-- To replicate the results in the paper, please run results.sh (which in turn calls all of the figure generators)
+- To replicate the results in the paper, please run results.sh (which in turn calls all of the figure generators) - takes 1h15m on a Mac M1
 - trained models can be found [here](https://osf.io/c57d4/), but if you want to train your own models you can run train_models.py to produce the model instances used in determining the model preactivations:
 - Also see [paper_results.ipynb](https://github.com/KietzmannLab/EmergentPredictiveCoding/blob/master/paper_results.ipynb) - but not that this is no longer current
 
@@ -51,4 +51,10 @@ Ali, A., Ahmad N., de Groot E., van Gerven M.A.J., Kietzmann T.C. (2021). **Pred
 - Add metal support to speed up things on a M1 Mac
 
 
+### M1 acceleration
 
+The operator 'aten::sgn.out' was recently (as of 10.26.2023) added to PyTorch, so you'll need a nightly
+build to install support for it
+
+
+```pip3 install --pre torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/nightly/cpu```

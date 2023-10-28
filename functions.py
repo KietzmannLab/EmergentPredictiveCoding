@@ -4,6 +4,18 @@ import torch.nn.functional as F
 import time
 from typing import Dict
 
+
+def get_device():
+    if torch.cuda.is_available():
+        DEVICE = 'cuda'
+        torch.set_default_tensor_type(torch.cuda.FloatTensor)
+    elif torch.backends.mps.is_available():
+        DEVICE = torch.device("mps")
+    else:
+        DEVICE = 'cpu'
+    print('Using {}'.format(DEVICE))
+    return DEVICE
+
 def get_time() -> int:
     '''Returns current time in ms'''
     return int(round(time.time() * 1000))

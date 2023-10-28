@@ -4,18 +4,14 @@ import mnist
 import Network
 import random
 import torch
+from functions import get_device
 from train import train
 
 parser = argparse.ArgumentParser(description='device')
 parser.add_argument('--i', type=str, help='Device index')
 args = parser.parse_args()
 
-if torch.cuda.is_available():
-    DEVICE = 'cuda'
-    torch.set_default_tensor_type(torch.cuda.FloatTensor)
-else:
-    DEVICE = 'cpu'
-print('Using {}'.format(DEVICE))
+DEVICE = get_device()
 
 INPUT_SIZE= 28*28
 BATCH_SIZE = 32

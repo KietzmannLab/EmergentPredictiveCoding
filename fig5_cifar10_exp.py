@@ -16,6 +16,7 @@ import plot
 import seaborn as sns
 import os 
 import random
+from functions import get_device
 from matplotlib.ticker import MaxNLocator
 
 def seed_everything(seed=42):
@@ -31,11 +32,7 @@ parser.add_argument('--i', type=str, help='Device index')
 args = parser.parse_args()
 plt.style.use('ggplot')
 
-if torch.cuda.is_available():
-    DEVICE = 'cuda'
-    torch.set_default_tensor_type(torch.cuda.FloatTensor)
-else:
-    DEVICE = 'cpu'
+DEVICE = get_device()
 
 print('Using {}'.format(DEVICE))
 

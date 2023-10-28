@@ -281,8 +281,8 @@ def compute_responses_drive(net, test_set, target=0, seq_length=10):
         nbatch = batch_data.shape[0]
         
 
-        response_k, drive_k, synaptrans_k = torch.zeros((net.model.W.shape[0], nbatch)),\
-            torch.zeros((net.model.W.shape[0], nbatch)), torch.zeros((net.model.W.shape[0], nbatch))
+        response_k, drive_k, synaptrans_k = torch.zeros((net.model.W.shape[0], nbatch)).to(net.device),\
+            torch.zeros((net.model.W.shape[0], nbatch)).to(net.device), torch.zeros((net.model.W.shape[0], nbatch)).to(net.device)
             
 
         abs_W = net.model.W.detach()#torch.abs(net.model.W.detach())
@@ -294,7 +294,7 @@ def compute_responses_drive(net, test_set, target=0, seq_length=10):
                     state = net.get_next_state(state,batch[m])
                 
                 # collect drives and responses for target (h_k, p_k+1)
-                response_k[:, i] = state
+                response_k[:, i] = state.to(net.device)
                 drive_k[:, i] = net.predict(state).squeeze()
                 synaptrans_k[:, i] = torch.sum(response_k[:, i].unsqueeze(-1) * abs_W, axis=1)
                 # reset state 
@@ -398,9 +398,11 @@ def _run_seq_from_digit(digit, steps, net:ModelState, dataset:Dataset, mask=None
     batch = b.squeeze() # removed 0 because of weird 
 
     h = net.model.init_state(1)
+    h = h.to(net.device)
     for i in range(steps):
         # check if mask needs to be applied
         if mask is not None:
+            mask = mask.to(net.device)
             # check if mask is for error or for prediction
             if len(mask.shape) > 1: # error mask
                 h, l_a = net.model(batch[i], state=h, mask=mask)
@@ -556,7 +558,7 @@ def compute_preact_stats(net:ModelState, dataset:Dataset, nclasses=10, ntime=10)
                 h_net, l_net = net.model(x, state=h_net)
                 #energy = _calc_energy(net, l_net[0], l_net[1])
                 if i == t: 
-                    med, mad= l_net[0].median(axis=0).values, torch.tensor(st.median_abs_deviation(l_net[0].detach().numpy(), axis=0, scale='normal'))
+                    med, mad= l_net[0].to(net.device).median(axis=0).values, torch.tensor(st.median_abs_deviation(l_net[0].cpu().detach().numpy(), axis=0, scale='normal'))
                   
             preact_stats[:, category, 0] = med
             preact_stats[:, category, 1] = mad

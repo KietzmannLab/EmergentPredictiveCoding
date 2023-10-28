@@ -11,7 +11,7 @@ class Network(torch.nn.Module):
     and computes the forward pass.
     Returns hidden state of the network and preactivations of the units. 
     """
-    def __init__(self, input_size: int, hidden_size: int, activation_func, weights_init=functions.init_params, prevbatch=False, conv=False):
+    def __init__(self, input_size: int, hidden_size: int, activation_func, weights_init=functions.init_params, prevbatch=False, conv=False, device=None):
         super(Network, self).__init__()
 
         self.input_size = input_size
@@ -22,12 +22,15 @@ class Network(torch.nn.Module):
         self.activation_func = activation_func
         self.W = torch.nn.Parameter(weights_init(hidden_size, hidden_size))
         self.prevbatch = prevbatch
+        self.device = device
 
     def forward(self, x, state=None, synap_trans=False, mask=None):
 
         if state is None:
             state = self.init_state(x.shape[0])
         h = state
+        h = h.to(self.device)
+        x = x.to(self.device)
 
         # pad input so it matches the hidden state dimensions
         if not self.is_conv:
@@ -64,10 +67,10 @@ class State(ModelState):
             torch.manual_seed(seed)
             np.random.seed(seed)
             self.seed = seed
-           
+
         ModelState.__init__(self,
                             
-                            Network(input_size, hidden_size, activation_func, weights_init=weights_init, prevbatch=prevbatch, conv=conv).to(device),
+                            Network(input_size, hidden_size, activation_func, weights_init=weights_init, prevbatch=prevbatch, conv=conv, device=device).to(device),
                             optimizer,
                             lr,
                             
@@ -101,7 +104,7 @@ class State(ModelState):
                 h = self.model.init_state(batch_size)
 
         loss = torch.zeros(1, dtype=torch.float, requires_grad=True)
-
+        loss = loss.to(self.device)
         for i in range(sequence_length):
             h, l_a = self.model(batch[i], state=h) # l_a is now a list of potential loss terms 
             
@@ -137,6 +140,7 @@ class State(ModelState):
         """
         Returns the networks 'prediction' for the input.
         """
+        state = state.to(self.device)
         pred = state @ self.model.W
         if not latent:
             return pred[:,:self.model.input_size]
