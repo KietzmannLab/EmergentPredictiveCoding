@@ -39,7 +39,7 @@ for loss_ind, loss in enumerate(losses):
                 lr=1e-4,
                 input_size=INPUT_SIZE,
                 hidden_size=INPUT_SIZE,
-                title="patterns_rev/seeded_mnist/mnist_net_"+loss,
+                title="patterns_rev/seeded_mnist/mnist_net_"+loss+"_"+str(i),
                 device=DEVICE,
                 seed=seeds[loss_ind][i])
       
