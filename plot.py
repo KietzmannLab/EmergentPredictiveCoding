@@ -282,8 +282,8 @@ def bootstrap_post_dynamics(net_list:[ModelState],
         
         
         # record curves
-        pred_samples[i ,:] = pred_curve.numpy()
-        err_samples[i ,:] = error_curve.numpy()
+        pred_samples[i ,:] = pred_curve.cpu().numpy()
+        err_samples[i ,:] = error_curve.cpu().numpy()
     pred_stats['samples'], err_stats['samples'] = pred_samples.mean(axis=0), err_samples.mean(axis=0)  
     bs_pred, bs_err = helper.compute_post_drive_bootstrap(pred_samples, err_samples)
     (h_pred, l_pred), (h_err, l_err) = helper.extract_lower_upper(bs_pred),  helper.extract_lower_upper(bs_err)

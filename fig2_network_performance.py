@@ -16,23 +16,17 @@ import argparse
 import matplotlib.pyplot as plt
 import os
 import pandas as pd
+from functions import get_device
 
 parser = argparse.ArgumentParser(description='device')
 parser.add_argument('--i', type=str, help='Device index')
 args = parser.parse_args()
 
-if torch.cuda.is_available():
-    DEVICE = 'cuda'
-    torch.set_default_tensor_type(torch.cuda.FloatTensor)
-else:
-    DEVICE = 'cpu'
-
-
-print('Using {}'.format(DEVICE))
+DEVICE = get_device()
 
 R_PATH = 'Results/Fig2/Data/'
 F_PATH = 'Results/Fig2/'
-M_PATH = 'final_networks/seeded_mnist/'
+M_PATH = 'patterns_rev/seeded_mnist/'
 
 hdf_path = R_PATH+'network_stats.h5'
 
@@ -69,14 +63,14 @@ train_set, validation_set, test_set = mnist.load(val_ratio=0.0)
 # load pre, post MNIST networks
 nets = [[], [], []]
 
-n_instances = [list(range(0,10)), list(range(0,10)), [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]]
+NUM_INSTANCES=10
 # load networks for bootstrap
 losses = ['l1_pre','l1_post', [str(beta)+'beta'+'l1_postandl2_weights' for beta in [3708.0] ][0]]
 # set up dictionaries to fill in the data
 ec_results, ap_results, st_results, pre_results = dict(), dict(), dict(), dict()
 result_list = [('ec', ec_results),('ap', ap_results), ('st', st_results), ('pre', pre_results)]
 for loss_ind, loss in enumerate(losses):
-    for i in range(0, n_instances):
+    for i in range(0, NUM_INSTANCES):
         net = Network.State(activation_func=torch.nn.ReLU(),
                 optimizer=torch.optim.Adam,
                 lr=1e-4,

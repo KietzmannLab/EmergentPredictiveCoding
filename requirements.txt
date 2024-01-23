@@ -1,0 +1,8 @@
+bootstrapped
+matplotlib
+numpy
+scipy
+seaborn
+tables
+torch
+torchvision

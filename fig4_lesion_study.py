@@ -15,22 +15,18 @@ import pandas as pd
 import helper
 import plot
 import os 
+from functions import get_device
+
 parser = argparse.ArgumentParser(description='device')
 parser.add_argument('--i', type=str, help='Device index')
 args = parser.parse_args()
 plt.style.use('ggplot')
 
-if torch.cuda.is_available():
-    DEVICE = 'cuda'
-    torch.set_default_tensor_type(torch.cuda.FloatTensor)
-else:
-    DEVICE = 'cpu'
-
-print('Using {}'.format(DEVICE))
+DEVICE = get_device()
 
 R_PATH = 'Results/Fig4/Data/'
 F_PATH = 'Results/Fig4/'
-M_PATH = 'final_networks/seeded_mnist/'
+M_PATH = 'patterns_rev/seeded_mnist/'
 hdf_path = R_PATH+'network_stats.h5'
 
 LOAD = False
@@ -184,7 +180,6 @@ plt.gca().set_aspect('auto')
 plt.grid(True)
 
 fig.tight_layout()
-plt.show()
 plot.save_fig(fig, F_PATH + 'postsynaptic_drive_dynamics')
 store.close()
 #------------------------------------------------------------------------------

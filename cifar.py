@@ -2,6 +2,7 @@ import torch
 import torchvision
 from torchvision import transforms
 from Dataset import Dataset
+import random
 
 class CIFAR10Dataset(Dataset):
     """Container class for the CIFAR10 database containing Tensors with the images and labels, as well as a list of indices for each category
@@ -11,14 +12,14 @@ class CIFAR10Dataset(Dataset):
         self.repeat = repeat
 
 
-    def create_batches(self, batch_size, sequence_length, shuffle=True, fixed_starting_point=None):
-        data, labels = create_sequences(self, sequence_length, batch_size, shuffle, fixed_starting_point)
+    def create_batches(self, batch_size, sequence_length, shuffle=True,  distractor=False, fixed_starting_point=None):
+        data, labels = create_sequences(self, sequence_length, batch_size, shuffle, distractor, fixed_starting_point)
         data = data.repeat_interleave(self.repeat, dim=1)
         labels = labels.repeat_interleave(self.repeat, dim=1)
         return data, labels
 
 
-def create_sequences(dataset, sequence_length, batch_size, shuffle=True, fixed_starting_point=None):
+def create_sequences(dataset, sequence_length, batch_size, shuffle=True, distractor=False, fixed_starting_point=None):
     # number of datapoints
     data_size, ninputs = dataset.x.shape
 
@@ -48,6 +49,15 @@ def create_sequences(dataset, sequence_length, batch_size, shuffle=True, fixed_s
         sequences[:,i] += i
     # take the remainder of all numbers in sequence to get actual digits from 0-9
     sequences %= 10
+
+    # switch out digit at position 8 for a distractor if flag is true
+    if distractor:
+        for i in range(max_sequences):
+            digit = sequences[i,8]
+            candidates = list(range(0,10))
+            candidates.remove(digit)
+            sequences[i, 8] = random.choice(candidates)
+
     # flatten again
     sequences = sequences.flatten()
     # create an array to store the indices for the digits in 'data'
